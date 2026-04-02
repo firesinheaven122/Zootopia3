@@ -2,6 +2,7 @@ from database import SessionLocal
 from models import User, Pet, Category, Product, ProductSpecies, Sale, SaleItem, Recommendation
 from datetime import datetime, timedelta
 import random
+from auth.service import hash_password
 
 # Создаем сессию подключения к БД
 db = SessionLocal()
@@ -14,51 +15,43 @@ print("1. Добавляем пользователей...")
 
 users = [
     User(
-        email="admin@zoo.com",
-        password_hash="hash123",
-        full_name="Админ Админов",
-        phone="+7(999)111-11-11",
+        email="nastya_danilova2006@mail.ru",
+        password_hash=hash_password("AdmInSALD"),
+        full_name="Анастасия Данилова",
+        phone="+7(925)205-36-35",
         role="admin",
         is_active=True
     ),
     User(
         email="seller1@zoo.com",
-        password_hash="hash123",
+        password_hash="Sell1er",
         full_name="Иван Петров",
         phone="+7(999)222-22-22",
-        role="seller",
+        role="client",
         is_active=True
     ),
     User(
-        email="seller2@zoo.com",
-        password_hash="hash123",
-        full_name="Мария Сидорова",
+        email="ArsVerh_maloletka@lox.com",
+        password_hash="Sel2",
+        full_name="Арсений Верхов",
         phone="+7(999)333-33-33",
-        role="seller",
+        role="client",
         is_active=True
     ),
     User(
         email="anna@mail.com",
-        password_hash="hash123",
-        full_name="Анна Иванова",
+        password_hash="rtidjlof",
+        full_name="Анна Фёдорова",
         phone="+7(999)444-44-44",
-        role="client",
+        role="seller",
         is_active=True
     ),
     User(
         email="petr@mail.com",
-        password_hash="hash123",
+        password_hash="petrhoqj",
         full_name="Петр Петров",
         phone="+7(999)555-55-55",
-        role="client",
-        is_active=True
-    ),
-    User(
-        email="elena@mail.com",
-        password_hash="hash123",
-        full_name="Елена Смирнова",
-        phone="+7(999)666-66-66",
-        role="client",
+        role="seller",
         is_active=True
     )
 ]
@@ -77,17 +70,17 @@ print("2. Добавляем питомцев...")
 
 pets = [
     Pet(
-        owner_id=clients[0].id,  # Анна
-        name="Рекс",
+        owner_id=clients[1].id,  
+        name="Пепса",
         species="dog",
-        breed="Немецкая овчарка",
+        breed="JackRussel",
         birth_date=datetime.now() - timedelta(days=365*3)
     ),
     Pet(
-        owner_id=clients[0].id,  # Анна
-        name="Мурка",
+        owner_id=clients[0].id,  
+        name="Тихон",
         species="cat",
-        breed="Сиамская",
+        breed="Bengal",
         birth_date=datetime.now() - timedelta(days=365*2)
     ),
     Pet(

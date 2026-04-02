@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, String, Numeric, Text, Boolean, Enum, Fo
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+from sqlalchemy.dialects.postgresql import JSONB
 import enum
 
 Base = declarative_base()
@@ -39,6 +40,7 @@ class User(Base):
     sales_as_seller = relationship('Sale', foreign_keys='Sale.seller_id', back_populates='seller')
     sales_as_client = relationship('Sale', foreign_keys='Sale.client_id', back_populates='client')
     recommendations = relationship('Recommendation', back_populates='client')
+    audit_logs = relationship('AuditLog', back_populates='user')
 
 class Pet(Base):
     __tablename__ = 'pets'
@@ -60,7 +62,6 @@ class Category(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(100), nullable=False)
     parent_id = Column(Integer, ForeignKey('categories.id'))
-    description = Column(Text)
 
     parent = relationship('Category', remote_side=[id], backref='subcategories')
 
@@ -140,3 +141,17 @@ class Recommendation(Base):
     client = relationship('User', back_populates='recommendations')
     pet = relationship('Pet', back_populates='recommendations')
     product = relationship('Product', back_populates='recommendations')
+
+class AuditLog(Base):
+    __tablename__ = 'audit_log'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    action = Column(String(100), nullable=False)
+    entity = Column(String(100), nullable=False)
+    entity_id = Column(Integer)
+    details = Column(JSONB)
+    log_type = Column(String(20), nullable=False)
+    created_at = Column(TIMESTAMP, server_default=func.now())
+
+    user = relationship('User', back_populates='audit_logs')

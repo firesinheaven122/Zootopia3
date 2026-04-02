@@ -3,6 +3,7 @@ from typing import Optional
 from datetime import datetime
 
 class PetCreateSchema(BaseModel):
+    owner_id: Optional[int] = None
     name: str
     species: str
     breed: Optional[str] = None

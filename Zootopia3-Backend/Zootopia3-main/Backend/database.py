@@ -1,7 +1,9 @@
-from sqlalchemy import create_engine, Column, Integer, String, Numeric, Text, Boolean, Enum, ForeignKey, TIMESTAMP
+from sqlalchemy import create_engine, Column, Integer, String, Numeric, Text, Boolean, Enum, ForeignKey, TIMESTAMP, func
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
 import enum
+from sqlalchemy.dialects.postgresql import JSONB
+
 
 # ----- НАСТРОЙКИ ПОДКЛЮЧЕНИЯ -----
 DATABASE_URL = DATABASE_URL = "postgresql://postgres:danilova2006@localhost/pet_shop_db"
@@ -141,18 +143,24 @@ class Recommendation(Base):
     pet = relationship('Pet', back_populates='recommendations')
     product = relationship('Product', back_populates='recommendations')
 
-# ----- ФУНКЦИЯ ДЛЯ ПОЛУЧЕНИЯ СЕССИИ -----
+class AuditLog(Base):
+    __tablename__ = 'audit_log'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    action = Column(String(100), nullable=False)
+    entity = Column(String(100), nullable=False)
+    entity_id = Column(Integer)
+    details = Column(JSONB)
+    log_type = Column(String(20), nullable=False)
+    created_at = Column(TIMESTAMP, server_default=func.now())
+
+    user = relationship('User', back_populates='audit_logs')
+
+
 def get_db():
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
-
-# ----- СОЗДАНИЕ ТАБЛИЦ (если нужно) -----
-def create_tables():
-    Base.metadata.create_all(bind=engine)
-    print("✅ Таблицы созданы!")
-
-if __name__ == "__main__":
-    create_tables()
