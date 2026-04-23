@@ -8,12 +8,12 @@ from auth.dependencies import get_current_user, require_admin
 
 router = APIRouter(prefix="/products", tags=["Товары"])
 
-# Получить все товары для всех
+
 @router.get("/", response_model=List[ProductResponseSchema])
 def get_products(db: Session = Depends(get_db)):
     return db.query(Product).filter(Product.is_active == True).all()
 
-# Получить один товар по id
+
 @router.get("/{product_id}", response_model=ProductResponseSchema)
 def get_product(product_id: int, db: Session = Depends(get_db)):
     product = db.query(Product).filter(Product.id == product_id).first()
@@ -21,7 +21,7 @@ def get_product(product_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Товар не найден")
     return product
 
-# Создать товар
+
 @router.post("/", response_model=ProductResponseSchema)
 def create_product(
     data: ProductCreateSchema,
@@ -34,7 +34,7 @@ def create_product(
     db.refresh(product)
     return product
 
-# Обновить товар
+
 @router.put("/{product_id}", response_model=ProductResponseSchema)
 def update_product(
     product_id: int,
@@ -51,7 +51,7 @@ def update_product(
     db.refresh(product)
     return product
 
-# Удалить товар
+
 @router.delete("/{product_id}")
 def delete_product(
     product_id: int,

@@ -4,13 +4,11 @@ from datetime import datetime, timedelta
 import random
 from auth.service import hash_password
 
-# Создаем сессию подключения к БД
 db = SessionLocal()
 
-print("🔄 Начинаем заполнение базы данных...")
+print(" Начинаем заполнение базы данных...")
 print("=" * 50)
 
-# 1. СОЗДАЕМ ПОЛЬЗОВАТЕЛЕЙ
 print("1. Добавляем пользователей...")
 
 users = [
@@ -18,13 +16,13 @@ users = [
         email="nastya_danilova2006@mail.ru",
         password_hash=hash_password("AdmInSALD"),
         full_name="Анастасия Данилова",
-        phone="+7(925)205-36-35",
+        phone="+7(926)205-36-35",
         role="admin",
         is_active=True
     ),
     User(
-        email="seller1@zoo.com",
-        password_hash="Sell1er",
+        email="ivannnpetr@zoo.com",
+        password_hash=hash_password("Sell1er"),
         full_name="Иван Петров",
         phone="+7(999)222-22-22",
         role="client",
@@ -32,7 +30,7 @@ users = [
     ),
     User(
         email="ArsVerh_maloletka@lox.com",
-        password_hash="Sel2",
+        password_hash=hash_password("kselofon"),
         full_name="Арсений Верхов",
         phone="+7(999)333-33-33",
         role="client",
@@ -40,17 +38,25 @@ users = [
     ),
     User(
         email="anna@mail.com",
-        password_hash="rtidjlof",
+        password_hash=hash_password("rtidjlof"),
         full_name="Анна Фёдорова",
         phone="+7(999)444-44-44",
-        role="seller",
+        role="client",
         is_active=True
     ),
     User(
         email="petr@mail.com",
-        password_hash="petrhoqj",
-        full_name="Петр Петров",
+        password_hash=hash_password("petrhoqj"),
+        full_name="Олег Васильев",
         phone="+7(999)555-55-55",
+        role="seller",
+        is_active=True
+    ),
+    User(
+        email="sofiaIch@mail.ru",
+        password_hash=hash_password("Bananchik"),
+        full_name="Софья Ичкеева",
+        phone="+7(926)893-55-66",
         role="seller",
         is_active=True
     )
@@ -58,14 +64,14 @@ users = [
 
 db.add_all(users)
 db.commit()
-print(f"   ✅ Добавлено {len(users)} пользователей")
+print(f"    Добавлено {len(users)} пользователей")
 
-# 2. ПОЛУЧАЕМ ID ПОЛЬЗОВАТЕЛЕЙ ИЗ БАЗЫ
+
 clients = db.query(User).filter(User.role == "client").all()
 sellers = db.query(User).filter(User.role == "seller").all()
 admin = db.query(User).filter(User.role == "admin").first()
 
-# 3. ДОБАВЛЯЕМ ПИТОМЦЕВ
+
 print("2. Добавляем питомцев...")
 
 pets = [
@@ -73,32 +79,32 @@ pets = [
         owner_id=clients[1].id,  
         name="Пепса",
         species="dog",
-        breed="JackRussel",
+        breed="Джек-Рассел",
         birth_date=datetime.now() - timedelta(days=365*3)
     ),
     Pet(
         owner_id=clients[0].id,  
         name="Тихон",
         species="cat",
-        breed="Bengal",
+        breed="Бенгал",
         birth_date=datetime.now() - timedelta(days=365*2)
     ),
     Pet(
-        owner_id=clients[1].id,  # Петр
-        name="Кеша",
+        owner_id=clients[1].id,
+        name="Пепа",
         species="bird",
         breed="Волнистый попугай",
         birth_date=datetime.now() - timedelta(days=365)
     ),
     Pet(
-        owner_id=clients[1].id,  # Петр
-        name="Бобик",
+        owner_id=clients[1].id,
+        name="Бусинка",
         species="dog",
-        breed="Такса",
+        breed="Нецкий дог",
         birth_date=datetime.now() - timedelta(days=365*4)
     ),
     Pet(
-        owner_id=clients[2].id,  # Елена
+        owner_id=clients[2].id,
         name="Золотце",
         species="fish",
         breed="Золотая рыбка",
@@ -108,28 +114,27 @@ pets = [
 
 db.add_all(pets)
 db.commit()
-print(f"   ✅ Добавлено {len(pets)} питомцев")
+print(f"    Добавлено {len(pets)} питомцев")
 
-# 4. ДОБАВЛЯЕМ КАТЕГОРИИ
+
 print("3. Добавляем категории товаров...")
 
 categories = [
-    Category(name="Корм для собак", description="Сухой и влажный корм"),
-    Category(name="Корм для кошек", description="Сухой и влажный корм"),
-    Category(name="Игрушки", description="Игрушки для животных"),
-    Category(name="Лежанки", description="Домики и лежанки"),
-    Category(name="Аксессуары", description="Поводки, ошейники, миски"),
-    Category(name="Груминг", description="Средства для ухода")
+    Category(name="Корм для собак"),
+    Category(name="Корм для кошек"),
+    Category(name="Игрушки"),
+    Category(name="Лежанки"),
+    Category(name="Аксессуары"),
+    Category(name="Груминг")
 ]
 
 db.add_all(categories)
 db.commit()
-print(f"   ✅ Добавлено {len(categories)} категорий")
+print(f"    Добавлено {len(categories)} категорий")
 
-# 5. ДОБАВЛЯЕМ ТОВАРЫ
+
 print("4. Добавляем товары...")
 
-# Получаем категории из базы
 dog_food = db.query(Category).filter(Category.name == "Корм для собак").first()
 cat_food = db.query(Category).filter(Category.name == "Корм для кошек").first()
 toys = db.query(Category).filter(Category.name == "Игрушки").first()
@@ -206,9 +211,9 @@ products = [
 
 db.add_all(products)
 db.commit()
-print(f"   ✅ Добавлено {len(products)} товаров")
+print(f"    Добавлено {len(products)} товаров")
 
-# 6. СВЯЗЫВАЕМ ТОВАРЫ С ВИДАМИ ЖИВОТНЫХ
+
 print("5. Добавляем связи товаров с видами...")
 
 product_species = [
@@ -223,9 +228,9 @@ product_species = [
 
 db.add_all(product_species)
 db.commit()
-print(f"   ✅ Добавлено {len(product_species)} связей")
+print(f"    Добавлено {len(product_species)} связей")
 
-# 7. СОЗДАЕМ ПРОДАЖИ
+
 print("6. Добавляем продажи...")
 
 sales = [
@@ -261,9 +266,9 @@ sales = [
 
 db.add_all(sales)
 db.commit()
-print(f"   ✅ Добавлено {len(sales)} продаж")
+print(f"    Добавлено {len(sales)} продаж")
 
-# 8. ДОБАВЛЯЕМ ПОЗИЦИИ В ЧЕКАХ
+
 print("7. Добавляем позиции в чеках...")
 
 sale_items = [
@@ -327,9 +332,9 @@ sale_items = [
 
 db.add_all(sale_items)
 db.commit()
-print(f"   ✅ Добавлено {len(sale_items)} позиций")
+print(f"    Добавлено {len(sale_items)} позиций")
 
-# 9. ДОБАВЛЯЕМ РЕКОМЕНДАЦИИ
+
 print("8. Добавляем рекомендации...")
 
 recommendations = [
@@ -369,19 +374,19 @@ recommendations = [
 
 db.add_all(recommendations)
 db.commit()
-print(f"   ✅ Добавлено {len(recommendations)} рекомендаций")
+print(f"    Добавлено {len(recommendations)} рекомендаций")
 
-# 10. ИТОГ
+
 print("\n" + "=" * 50)
 print("✅ БАЗА ДАННЫХ УСПЕШНО ЗАПОЛНЕНА!")
 print("=" * 50)
-print(f"📊 Пользователей: {db.query(User).count()}")
-print(f"📊 Питомцев: {db.query(Pet).count()}")
-print(f"📊 Категорий: {db.query(Category).count()}")
-print(f"📊 Товаров: {db.query(Product).count()}")
-print(f"📊 Продаж: {db.query(Sale).count()}")
-print(f"📊 Рекомендаций: {db.query(Recommendation).count()}")
+print(f" Пользователей: {db.query(User).count()}")
+print(f" Питомцев: {db.query(Pet).count()}")
+print(f" Категорий: {db.query(Category).count()}")
+print(f" Товаров: {db.query(Product).count()}")
+print(f" Продаж: {db.query(Sale).count()}")
+print(f" Рекомендаций: {db.query(Recommendation).count()}")
 print("=" * 50)
 
-# Закрываем соединение
+
 db.close()

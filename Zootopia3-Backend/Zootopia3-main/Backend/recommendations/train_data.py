@@ -6,7 +6,7 @@ def get_training_data():
     
     # Берём все покупки из базы
     sale_items = db.query(SaleItem).join(Sale).filter(
-        Sale.client_id != None  # только авторизованные клиенты
+        Sale.client_id != None
     ).all()
     
     data = []
@@ -14,7 +14,7 @@ def get_training_data():
         data.append({
             "client_id": item.sale.client_id,
             "product_id": item.product_id,
-            "rating": float(item.quantity)  # количество как оценка
+            "rating": float(item.quantity) 
         })
     
     db.close()

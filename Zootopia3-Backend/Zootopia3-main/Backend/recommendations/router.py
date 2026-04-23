@@ -12,7 +12,7 @@ from surprise.model_selection import cross_validate
 
 router = APIRouter(prefix="/recommendations", tags=["Рекомендации"])
 
-# Обучить модель — только админ
+
 @router.post("/train")
 def train(
     db: Session = Depends(get_db),
@@ -26,7 +26,7 @@ def train(
         raise HTTPException(status_code=500, detail="Ошибка обучения модели")
     return {"message": f"Модель обучена на {len(data)} записях"}
 
-# Получить рекомендации для клиента
+
 @router.post("/generate")
 def generate(
     db: Session = Depends(get_db),
@@ -42,10 +42,15 @@ def generate(
     ).all()
     product_ids = [p.id for p in all_products]
 
-    ml_results = get_recommendations(current_user.id, product_ids)
-
     created = 0
     for pet in pets:
+        ml_results = get_recommendations(
+            client_id=current_user.id,
+            product_ids=product_ids,
+            pet=pet,
+            top_n=5
+        )
+
         for result in ml_results:
             existing = db.query(Recommendation).filter(
                 Recommendation.client_id == current_user.id,
@@ -55,12 +60,20 @@ def generate(
             if existing:
                 continue
 
+            reason = "Рекомендовано AI на основе истории покупок"
+            if pet.weight:
+                reason += f" и веса питомца {pet.weight} кг"
+            if pet.body_girth:
+                reason += f", обхват тела {pet.body_girth} см"
+            if pet.back_length:
+                reason += f", длина спины {pet.back_length} см"
+
             rec = Recommendation(
                 client_id=current_user.id,
                 pet_id=pet.id,
                 product_id=result["product_id"],
-                score=round(result["score"], 2),
-                reason=f"Рекомендовано AI на основе истории покупок"
+                score=round(result["score"] / 10, 2),
+                reason=reason
             )
             db.add(rec)
             created += 1
@@ -78,7 +91,7 @@ def generate(
 
     return {"message": f"Создано рекомендаций: {created}"}
 
-# Получить свои рекомендации
+
 @router.get("/my", response_model=List[RecommendationResponseSchema])
 def get_my_recommendations(
     db: Session = Depends(get_db),

@@ -5,13 +5,11 @@ import enum
 from sqlalchemy.dialects.postgresql import JSONB
 
 
-# ----- НАСТРОЙКИ ПОДКЛЮЧЕНИЯ -----
 DATABASE_URL = DATABASE_URL = "postgresql://postgres:danilova2006@localhost/pet_shop_db"
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# ----- ПЕРЕЧИСЛЕНИЯ (ENUM) -----
 class UserRole(enum.Enum):
     admin = 'admin'
     seller = 'seller'
@@ -29,7 +27,7 @@ class PaymentType(enum.Enum):
     cash = 'cash'
     card = 'card'
 
-# ----- ТАБЛИЦА users -----
+
 class User(Base):
     __tablename__ = 'users'
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -46,7 +44,7 @@ class User(Base):
     sales_as_client = relationship('Sale', foreign_keys='Sale.client_id', back_populates='client')
     recommendations = relationship('Recommendation', back_populates='client')
 
-# ----- ТАБЛИЦА pets -----
+
 class Pet(Base):
     __tablename__ = 'pets'
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -55,12 +53,15 @@ class Pet(Base):
     species = Column(Enum(SpeciesType))
     breed = Column(String(100))
     birth_date = Column(TIMESTAMP)
+    body_girth = Column(Numeric(6, 2))
+    back_length = Column(Numeric(6, 2))
+    weight = Column(Numeric(6, 2))
     created_at = Column(TIMESTAMP, server_default='now()')
     
     owner = relationship('User', back_populates='pets')
     recommendations = relationship('Recommendation', back_populates='pet')
 
-# ----- ТАБЛИЦА categories -----
+
 class Category(Base):
     __tablename__ = 'categories'
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -70,7 +71,7 @@ class Category(Base):
     
     parent = relationship('Category', remote_side=[id], backref='subcategories')
 
-# ----- ТАБЛИЦА products -----
+
 class Product(Base):
     __tablename__ = 'products'
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -91,7 +92,7 @@ class Product(Base):
     recommendations = relationship('Recommendation', back_populates='product')
     species_link = relationship('ProductSpecies', back_populates='product')
 
-# ----- ТАБЛИЦА product_species -----
+
 class ProductSpecies(Base):
     __tablename__ = 'product_species'
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -100,7 +101,7 @@ class ProductSpecies(Base):
     
     product = relationship('Product', back_populates='species_link')
 
-# ----- ТАБЛИЦА sales -----
+
 class Sale(Base):
     __tablename__ = 'sales'
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -114,7 +115,7 @@ class Sale(Base):
     client = relationship('User', foreign_keys=[client_id], back_populates='sales_as_client')
     items = relationship('SaleItem', back_populates='sale')
 
-# ----- ТАБЛИЦА sale_items -----
+
 class SaleItem(Base):
     __tablename__ = 'sale_items'
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -127,7 +128,7 @@ class SaleItem(Base):
     sale = relationship('Sale', back_populates='items')
     product = relationship('Product', back_populates='sale_items')
 
-# ----- ТАБЛИЦА recommendations -----
+
 class Recommendation(Base):
     __tablename__ = 'recommendations'
     id = Column(Integer, primary_key=True, autoincrement=True)

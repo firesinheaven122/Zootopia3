@@ -15,7 +15,7 @@ from audit.router import router as audit_router
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
-    title="Зоомагазин API",
+    title="Зоомагазин",
     swagger_ui_parameters={"persistAuthorization": True}
 )
 
@@ -31,7 +31,7 @@ app.include_router(audit_router)
 
 @app.get("/")
 def root():
-    return {"message": "Зоомагазин API работает"}
+    return {"message": "Зоомагазин работает"}
 
 def custom_openapi():
     if app.openapi_schema:

@@ -9,7 +9,6 @@ from auth.service import hash_password
 
 router = APIRouter(prefix="/clients", tags=["Клиенты"])
 
-# Получить всех клиентов
 @router.get("/", response_model=List[ClientResponseSchema])
 def get_clients(
     db: Session = Depends(get_db),
@@ -17,7 +16,6 @@ def get_clients(
 ):
     return db.query(User).filter(User.role == UserRole.client).all()
 
-# Получить одного клиента
 @router.get("/{client_id}", response_model=ClientResponseSchema)
 def get_client(
     client_id: int,
@@ -32,7 +30,7 @@ def get_client(
         raise HTTPException(status_code=404, detail="Клиент не найден")
     return client
 
-# Блок клиента
+
 @router.put("/{client_id}/block")
 def block_client(
     client_id: int,
@@ -49,7 +47,6 @@ def block_client(
     db.commit()
     return {"message": "Клиент заблокирован"}
 
-# Разблокировать клиента
 @router.put("/{client_id}/unblock")
 def unblock_client(
     client_id: int,

@@ -37,8 +37,7 @@ def create_pet(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
-    # Если админ и указал owner_id — используем его
-    # Иначе привязываем к текущему пользователю
+
     if current_user.role.value == "admin" and data.owner_id:
         owner_id = data.owner_id
     else:
@@ -122,7 +121,7 @@ def admin_create_pet(
     db: Session = Depends(get_db),
     current_user=Depends(require_admin)
 ):
-    # Проверяем что клиент существует
+
     client = db.query(User).filter(
         User.id == client_id,
         User.role == UserRole.client
