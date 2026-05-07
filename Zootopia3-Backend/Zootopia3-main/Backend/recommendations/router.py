@@ -4,12 +4,10 @@ from typing import List
 from database import get_db
 from models import Recommendation, Pet, Product, ProductSpecies
 from recommendations.schemas import RecommendationResponseSchema
-from recommendations.ml_model import train_model, get_recommendations
+from recommendations.ml_model import train_model, get_recommendations, ml_import_error
 from recommendations.train_data import get_training_data
 from auth.dependencies import require_client, require_admin, get_current_user
 from audit.router import write_log
-from surprise.model_selection import cross_validate
-
 router = APIRouter(prefix="/recommendations", tags=["Рекомендации"])
 
 
@@ -18,6 +16,11 @@ def train(
     db: Session = Depends(get_db),
     current_user=Depends(require_admin)
 ):
+    if ml_import_error is not None:
+        raise HTTPException(
+            status_code=503,
+            detail="ML-модуль недоступен: установите пакет scikit-surprise"
+        )
     data = get_training_data()
     if not data:
         raise HTTPException(status_code=400, detail="Недостаточно данных для обучения")
@@ -103,12 +106,18 @@ def get_my_recommendations(
 
 @router.get("/accuracy")
 def get_accuracy(current_user=Depends(require_admin)):
+    if ml_import_error is not None:
+        raise HTTPException(
+            status_code=503,
+            detail="ML-модуль недоступен: установите пакет scikit-surprise"
+        )
     data = get_training_data()
     if not data:
         raise HTTPException(status_code=400, detail="Недостаточно данных")
     
     import pandas as pd
     from surprise import Dataset, Reader, SVD
+    from surprise.model_selection import cross_validate
     
     df = pd.DataFrame(data)
     reader = Reader(rating_scale=(1, 10))

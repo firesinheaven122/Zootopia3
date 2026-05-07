@@ -13,12 +13,12 @@ class UserRole(enum.Enum):
     client = 'client'
 
 class SpeciesType(enum.Enum):
-    dog = 'dog'
-    cat = 'cat'
-    bird = 'bird'
-    fish = 'fish'
-    rodent = 'rodent'
-    other = 'other'
+    dog = 'собака'
+    cat = 'кот'
+    bird = 'птица'
+    fish = 'рыба'
+    rodent = 'грызун'
+    other = 'другое'
 
 class PaymentType(enum.Enum):
     cash = 'cash'

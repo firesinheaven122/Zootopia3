@@ -25,7 +25,7 @@ users = [
         password_hash=hash_password("Sell1er"),
         full_name="Иван Петров",
         phone="+7(999)222-22-22",
-        role="client",
+        role="Клиент",
         is_active=True
     ),
     User(
@@ -78,35 +78,35 @@ pets = [
     Pet(
         owner_id=clients[1].id,  
         name="Пепса",
-        species="dog",
+        species="собака",
         breed="Джек-Рассел",
         birth_date=datetime.now() - timedelta(days=365*3)
     ),
     Pet(
         owner_id=clients[0].id,  
         name="Тихон",
-        species="cat",
+        species="кот",
         breed="Бенгал",
         birth_date=datetime.now() - timedelta(days=365*2)
     ),
     Pet(
         owner_id=clients[1].id,
         name="Пепа",
-        species="bird",
+        species="птица",
         breed="Волнистый попугай",
         birth_date=datetime.now() - timedelta(days=365)
     ),
     Pet(
         owner_id=clients[1].id,
         name="Бусинка",
-        species="dog",
+        species="собака",
         breed="Нецкий дог",
         birth_date=datetime.now() - timedelta(days=365*4)
     ),
     Pet(
         owner_id=clients[2].id,
         name="Золотце",
-        species="fish",
+        species="рыба",
         breed="Золотая рыбка",
         birth_date=datetime.now() - timedelta(days=180)
     )

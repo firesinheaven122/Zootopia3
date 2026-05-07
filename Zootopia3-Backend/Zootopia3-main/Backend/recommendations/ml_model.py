@@ -1,15 +1,25 @@
-from surprise import Dataset, Reader, SVD
-from surprise.model_selection import train_test_split
-import pandas as pd
-
 model = None
+ml_import_error = None
+
+try:
+    from surprise import Dataset, Reader, SVD
+    from surprise.model_selection import train_test_split
+except ModuleNotFoundError as exc:
+    ml_import_error = exc
 
 def train_model(data: list):
     global model
-    
+    if ml_import_error is not None:
+        return False
+
     if not data:
         return False
-    
+
+    try:
+        import pandas as pd
+    except ModuleNotFoundError:
+        return False
+
     df = pd.DataFrame(data)
     
     reader = Reader(rating_scale=(1, 10))
