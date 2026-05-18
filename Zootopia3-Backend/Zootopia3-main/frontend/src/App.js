@@ -38,7 +38,7 @@ function speciesLabel(species) {
 }
 
 /* Хедер */
-function Header({ user, onLoginClick, onLogout, productSearch, setProductSearch }) {
+function Header({ user, onLoginClick, onLogout, productSearch, setProductSearch, cartCount, onCartClick }) {
   return (
     <header className="header">
       <div className="header-container">
@@ -55,9 +55,16 @@ function Header({ user, onLoginClick, onLogout, productSearch, setProductSearch 
               className="header-search-input"
             />
           </div>
-          <button type="button" onClick={user ? onLogout : onLoginClick} className="header-auth-btn">
-            <span className="header-auth-text">{user ? 'Выйти' : 'Войти'}</span>
-          </button>
+          <div className="header-actions">
+            {/* Кнопка корзины — показывает количество товаров */}
+            <button type="button" className="cart-btn" onClick={onCartClick}>
+              <span className="cart-icon">&#128722;</span>
+              {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
+            </button>
+            <button type="button" onClick={user ? onLogout : onLoginClick} className="header-auth-btn">
+              <span className="header-auth-text">{user ? 'Профиль' : 'Войти'}</span>
+            </button>
+          </div>
         </div>
       </div>
     </header>
@@ -131,6 +138,11 @@ function App() {
   const [authMode, setAuthMode] = useState('login');
   const [showPassword, setShowPassword] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
+
+  /* Корзина — хранится в состоянии как массив {product, quantity} */
+  const [cart, setCart] = useState([]);
+  const [showCart, setShowCart] = useState(false);
+  const [cartPayment, setCartPayment] = useState('cash');
 
   const [authForm, setAuthForm] = useState({
     email: '',
@@ -490,6 +502,7 @@ function App() {
     });
     if (!res.ok) throw new Error('Ошибка загрузки картинки');
     const data = await res.json();
+    /* Формируем полный URL с адресом бэкенда */
     return { ...data, image_url: `${API_BASE}${data.image_url}` };
   };
 
@@ -829,6 +842,50 @@ function App() {
     }
   };
 
+  /* Добавить товар в корзину */
+  const addToCart = (product) => {
+    if (!token) { setShowAuthModal(true); return; }
+    setCart((prev) => {
+      const existing = prev.find((i) => i.product.id === product.id);
+      if (existing) {
+        return prev.map((i) => i.product.id === product.id ? { ...i, quantity: i.quantity + 1 } : i);
+      }
+      return [...prev, { product, quantity: 1 }];
+    });
+  };
+
+  /* Убрать товар из корзины */
+  const removeFromCart = (productId) => {
+    setCart((prev) => prev.filter((i) => i.product.id !== productId));
+  };
+
+  /* Изменить количество в корзине */
+  const changeCartQty = (productId, qty) => {
+    if (qty < 1) { removeFromCart(productId); return; }
+    setCart((prev) => prev.map((i) => i.product.id === productId ? { ...i, quantity: qty } : i));
+  };
+
+  /* Оформить заказ из корзины */
+  const checkoutCart = async () => {
+    if (cart.length === 0) return;
+    setError('');
+    try {
+      const items = cart.map((i) => ({ product_id: i.product.id, quantity: i.quantity }));
+      await api('/sales/', {
+        method: 'POST',
+        body: JSON.stringify({ payment_type: cartPayment, items }),
+      });
+      setCart([]);
+      setShowCart(false);
+      setMessage('Заказ успешно оформлен!');
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  const cartTotal = cart.reduce((sum, i) => sum + i.product.price * i.quantity, 0);
+  const cartCount = cart.reduce((sum, i) => sum + i.quantity, 0);
+
   const formatMoney = (value) => Number(value).toLocaleString('ru-RU', { style: 'currency', currency: 'RUB' });
 
   const goToProducts = (categoryId) => {
@@ -898,6 +955,8 @@ function App() {
         onLogout={handleLogout}
         productSearch={productSearch}
         setProductSearch={setProductSearch}
+        cartCount={cartCount}
+        onCartClick={() => setShowCart(true)}
       />
       <div className="layout">
       {showAuthModal && authModalContent}
@@ -1111,7 +1170,10 @@ function App() {
                     </div>
                     <div className="product-actions">
                       <button className="primary" onClick={() => openProductDetails(item)}>Подробнее</button>
-                      {/* Кнопка редактирования товара — только для администратора */}
+                      {/* Кнопка добавления в корзину — для всех кроме admin/seller */}
+                      {!isAdmin && !isSeller && (
+                        <button className="cart-add-btn" onClick={() => addToCart(item)}>В корзину</button>
+                      )}
                       {isAdmin && (
                         <button className="ghost-btn" onClick={() => openEditModal(item)}>Изменить</button>
                       )}
@@ -1617,6 +1679,62 @@ function App() {
           </section>
         )}
       </main>
+
+      {/* Модальное окно корзины */}
+      {showCart && (
+        <div className="modal-overlay" onClick={() => setShowCart(false)}>
+          <div className="modal-card cart-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-top">
+              <h3>Корзина</h3>
+              <button className="modal-close-btn" onClick={() => setShowCart(false)}>X</button>
+            </div>
+            {cart.length === 0 ? (
+              <p className="muted cart-empty">Корзина пуста</p>
+            ) : (
+              <>
+                <div className="cart-list">
+                  {cart.map((item) => (
+                    <div key={item.product.id} className="cart-item">
+                      <img
+                        className="cart-item-img"
+                        src={imgUrl(item.product.image_url)}
+                        alt={item.product.name}
+                      />
+                      <div className="cart-item-info">
+                        <p className="cart-item-name">{item.product.name}</p>
+                        <p className="cart-item-price">{formatMoney(item.product.price)}</p>
+                      </div>
+                      <div className="cart-item-qty">
+                        <button type="button" onClick={() => changeCartQty(item.product.id, item.quantity - 1)}>-</button>
+                        <span>{item.quantity}</span>
+                        <button type="button" onClick={() => changeCartQty(item.product.id, item.quantity + 1)}>+</button>
+                      </div>
+                      <div className="cart-item-subtotal">{formatMoney(item.product.price * item.quantity)}</div>
+                      <button type="button" className="cart-item-remove" onClick={() => removeFromCart(item.product.id)}>X</button>
+                    </div>
+                  ))}
+                </div>
+                <div className="cart-footer">
+                  <div className="cart-total">
+                    <span>Итого:</span>
+                    <span className="cart-total-sum">{formatMoney(cartTotal)}</span>
+                  </div>
+                  <div className="cart-payment">
+                    <label className="feedback-label">Способ оплаты</label>
+                    <select value={cartPayment} onChange={(e) => setCartPayment(e.target.value)}>
+                      <option value="cash">Наличные</option>
+                      <option value="card">Банковская карта</option>
+                    </select>
+                  </div>
+                  <button type="button" className="primary cart-checkout-btn" onClick={checkoutCart}>
+                    Оформить заказ
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Модальное окно подробностей товара */}
       {selectedProduct && (
