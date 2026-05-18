@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 from decimal import Decimal
 
@@ -7,8 +7,8 @@ class ProductCreateSchema(BaseModel):
     name: str
     article: Optional[str] = None
     description: Optional[str] = None
-    price: Decimal
-    quantity: int = 0
+    price: Decimal = Field(..., gt=0, description="Цена должна быть больше 0")
+    quantity: int = Field(0, ge=0, description="Количество не может быть отрицательным")
     unit: str = "шт"
     image_url: Optional[str] = None
 
@@ -16,8 +16,8 @@ class ProductUpdateSchema(BaseModel):
     name: Optional[str] = None
     article: Optional[str] = None
     description: Optional[str] = None
-    price: Optional[Decimal] = None
-    quantity: Optional[int] = None
+    price: Optional[Decimal] = Field(None, gt=0)
+    quantity: Optional[int] = Field(None, ge=0)
     unit: Optional[str] = None
     image_url: Optional[str] = None
     is_active: Optional[bool] = None

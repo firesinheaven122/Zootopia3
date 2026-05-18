@@ -12,6 +12,9 @@ from sales.router import router as sales_router
 from users.router import router as users_router
 from recommendations.router import router as recommendations_router
 from audit.router import router as audit_router
+from feedback.router import router as feedback_router
+from fastapi.staticfiles import StaticFiles
+
 
 Base.metadata.create_all(bind=engine)
 
@@ -28,6 +31,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 app.include_router(auth_router)
 app.include_router(products_router)
 app.include_router(categories_router)
@@ -37,6 +42,7 @@ app.include_router(sales_router)
 app.include_router(users_router)
 app.include_router(recommendations_router)
 app.include_router(audit_router)
+app.include_router(feedback_router)
 
 @app.get("/")
 def root():

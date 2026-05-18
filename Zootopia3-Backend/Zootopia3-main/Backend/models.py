@@ -155,3 +155,18 @@ class AuditLog(Base):
     created_at = Column(TIMESTAMP, server_default=func.now())
 
     user = relationship('User', back_populates='audit_logs')
+
+
+class Feedback(Base):
+    __tablename__ = 'feedback'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    name = Column(String(255), nullable=False)
+    email = Column(String(255), nullable=False)
+    subject = Column(String(255), nullable=False)
+    message = Column(Text, nullable=False)
+    status = Column(String(20), server_default='new')
+    created_at = Column(TIMESTAMP, server_default=func.now())
+
+    user = relationship('User', backref='feedbacks')

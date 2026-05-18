@@ -7,6 +7,11 @@ class ClientCreateSchema(BaseModel):
     full_name: str
     phone: Optional[str] = None
 
+class ClientUpdateSchema(BaseModel):
+    full_name: Optional[str] = None
+    phone: Optional[str] = None
+    is_active: Optional[bool] = None
+
 class ClientResponseSchema(BaseModel):
     id: int
     email: str
@@ -17,4 +22,3 @@ class ClientResponseSchema(BaseModel):
 
     class Config:
         from_attributes = True
-        

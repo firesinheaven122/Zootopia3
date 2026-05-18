@@ -1,12 +1,16 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
+from enum import Enum
+
+class StaffRole(str, Enum):
+    seller = "seller"
 
 class UserCreateSchema(BaseModel):
     email: EmailStr
     password: str
     full_name: str
     phone: Optional[str] = None
-    role: str = "seller"
+    role: StaffRole = StaffRole.seller
 
 class UserResponseSchema(BaseModel):
     id: int

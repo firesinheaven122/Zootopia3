@@ -28,14 +28,16 @@ users = [
         role="Клиент",
         is_active=True
     ),
-    User(
-        email="ArsVerh_maloletka@lox.com",
-        password_hash=hash_password("kselofon"),
-        full_name="Арсений Верхов",
-        phone="+7(999)333-33-33",
-        role="client",
+
+        User(
+        email="phara_gleb@gmail.com",
+        password_hash=hash_password("Seller2"),
+        full_name="Глеб Голубин",
+        phone="+7(999)222-22-22",
+        role="Клиент",
         is_active=True
     ),
+
     User(
         email="anna@mail.com",
         password_hash=hash_password("rtidjlof"),
@@ -76,14 +78,14 @@ print("2. Добавляем питомцев...")
 
 pets = [
     Pet(
-        owner_id=clients[1].id,  
+        owner_id=clients[0].id,  
         name="Пепса",
         species="собака",
         breed="Джек-Рассел",
         birth_date=datetime.now() - timedelta(days=365*3)
     ),
     Pet(
-        owner_id=clients[0].id,  
+        owner_id=clients[1].id,  
         name="Тихон",
         species="кот",
         breed="Бенгал",
@@ -97,14 +99,14 @@ pets = [
         birth_date=datetime.now() - timedelta(days=365)
     ),
     Pet(
-        owner_id=clients[1].id,
+        owner_id=clients[2].id,
         name="Бусинка",
         species="собака",
         breed="Нецкий дог",
         birth_date=datetime.now() - timedelta(days=365*4)
     ),
     Pet(
-        owner_id=clients[2].id,
+        owner_id=clients[3].id,
         name="Золотце",
         species="рыба",
         breed="Золотая рыбка",

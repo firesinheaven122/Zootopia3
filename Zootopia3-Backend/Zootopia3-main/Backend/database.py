@@ -3,9 +3,14 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
 import enum
 from sqlalchemy.dialects.postgresql import JSONB
+import os
+from sqlalchemy import create_engine
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
 
 
 DATABASE_URL = DATABASE_URL = "postgresql://postgres:danilova2006@localhost/pet_shop_db"
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://ichkeevas:sonya2006@localhost/pet_shop_db")
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
@@ -158,6 +163,18 @@ class AuditLog(Base):
 
     user = relationship('User', back_populates='audit_logs')
 
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
 
 def get_db():
     db = SessionLocal()

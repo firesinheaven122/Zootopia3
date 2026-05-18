@@ -1,5 +1,6 @@
 import './App.css';
 import { useEffect, useMemo, useState } from 'react';
+import { Phone, Mail, Search, User, LogIn, Sparkles } from 'lucide-react';
 
 const ROLE_LABELS = {
   admin: 'Администратор',
@@ -36,12 +37,101 @@ function speciesLabel(species) {
   return SPECIES_LABELS[species] || species;
 }
 
+/* Хедер */
+function Header({ user, onLoginClick, onLogout, productSearch, setProductSearch }) {
+  return (
+    <header className="header">
+      <div className="header-container">
+        <div className="header-content">
+          <div className="header-logo">
+            <h1 className="header-logo-text">Зоомагазин</h1>
+          </div>
+          <div className="header-search-wrapper">
+            <input
+              type="text"
+              placeholder="Поиск товаров..."
+              value={productSearch}
+              onChange={(e) => setProductSearch(e.target.value)}
+              className="header-search-input"
+            />
+          </div>
+          <button type="button" onClick={user ? onLogout : onLoginClick} className="header-auth-btn">
+            <span className="header-auth-text">{user ? 'Выйти' : 'Войти'}</span>
+          </button>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+/* Футер */
+function Footer({ setActiveSection }) {
+  const links = [
+    { label: 'Каталог товаров', section: 'products' },
+    { label: 'Рекомендации', section: 'recommendations' },
+    { label: 'Профиль питомца', section: 'pets' },
+    { label: 'История покупок', section: 'sales' },
+  ];
+  return (
+    <footer className="footer">
+      <div className="footer-container">
+        <div className="footer-grid">
+          <div className="footer-section">
+            <h3 className="footer-section-title">Быстрые ссылки</h3>
+            <ul className="footer-links">
+              {links.map((l) => (
+                <li key={l.section}>
+                  <button type="button" className="footer-link" onClick={() => setActiveSection(l.section)}>
+                    {l.label}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="footer-section">
+            <h3 className="footer-section-title">Связь с нами</h3>
+            <div className="footer-contact">
+              <div className="footer-contact-item">
+                <div className="footer-contact-icon">&#9742;</div>
+                <div>
+                  <p className="footer-contact-label">Телефон</p>
+                  <a href="tel:+76665554433" className="footer-contact-link">+7(666)555-44-33</a>
+                </div>
+              </div>
+              <div className="footer-contact-item">
+                <div className="footer-contact-icon">&#9993;</div>
+                <div>
+                  <p className="footer-contact-label">Электронная почта</p>
+                  <a href="mailto:zootopia@petshop.ru" className="footer-contact-link">zootopia@petshop.ru</a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="footer-copyright">
+          <p>&copy; 2026 Зоомагазин. Все права защищены.</p>
+        </div>
+      </div>
+    </footer>
+  );
+}
+
+
 function App() {
   const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+  /* Формирует полный URL картинки — если путь относительный, добавляет адрес бэкенда */
+  const imgUrl = (url) => {
+    if (!url) return 'https://images.unsplash.com/photo-1589924691995-400dc9ecc119?w=600&h=400&fit=crop';
+    if (url.startsWith('http')) return url;
+    return `${API_BASE}${url}`;
+  };
+
   const [token, setToken] = useState(localStorage.getItem('token') || '');
   const [user, setUser] = useState(null);
   const [authMode, setAuthMode] = useState('login');
   const [showPassword, setShowPassword] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+
   const [authForm, setAuthForm] = useState({
     email: '',
     password: '',
@@ -61,8 +151,35 @@ function App() {
   const [users, setUsers] = useState([]);
   const [recommendations, setRecommendations] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
+  const [feedbacks, setFeedbacks] = useState([]);
+  const [feedbackForm, setFeedbackForm] = useState({
+    name: '', email: '', subject: '', message: ''
+  });
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [productSearch, setProductSearch] = useState('');
+
+  /* Модальное окно редактирования товара */
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [editForm, setEditForm] = useState({
+    name: '',
+    article: '',
+    price: '',
+    quantity: '',
+    unit: '',
+    image_url: '',
+    description: '',
+    category_id: '',
+    imageFile: null,
+  });
+
+  /* Форма редактирования клиента */
+  const [isEditClientOpen, setIsEditClientOpen] = useState(false);
+  const [editingClient, setEditingClient] = useState(null);
+  const [editClientForm, setEditClientForm] = useState({
+    full_name: '',
+    phone: '',
+  });
 
   const [productForm, setProductForm] = useState({
     category_id: '',
@@ -73,6 +190,7 @@ function App() {
     quantity: '',
     unit: 'шт',
     image_url: '',
+    imageFile: null,
   });
   const [categoryForm, setCategoryForm] = useState({ name: '', parent_id: '' });
   const [sidebarCategoriesOpen, setSidebarCategoriesOpen] = useState(true);
@@ -91,6 +209,8 @@ function App() {
     payment_type: 'cash',
     items: '',
   });
+
+  /* Форма создания сотрудника — только роль seller */
   const [userForm, setUserForm] = useState({
     email: '',
     password: '',
@@ -99,12 +219,39 @@ function App() {
     role: 'seller',
   });
 
+  /* Форма создания клиента */
+  const [clientForm, setClientForm] = useState({
+    email: '',
+    password: '',
+    full_name: '',
+    phone: '',
+  });
+
   const role = user?.role || '';
   const isAdmin = role === 'admin';
   const isSeller = role === 'seller' || isAdmin;
   const isClient = role === 'client' || isAdmin;
 
+  /* Разделы бокового меню — видны всем, но некоторые требуют авторизации */
+  const ALL_SECTIONS = [
+    { id: 'pets', label: 'Питомцы', roles: ['client', 'admin'] },
+    { id: 'recommendations', label: 'Рекомендации', roles: ['client', 'admin'] },
+    { id: 'sales', label: 'История покупок', roles: ['client', 'seller', 'admin'] },
+    { id: 'clients', label: 'Клиенты', roles: ['seller', 'admin'] },
+    { id: 'users', label: 'Сотрудники', roles: ['admin'] },
+    { id: 'audit', label: 'Аудит', roles: ['admin'] },
+  ];
+
+  /* Все вкладки видны в меню — гость видит их, но при входе получает запрос авторизации */
   const sections = useMemo(() => {
+    if (!token) {
+      /* Гость видит только публичные вкладки */
+      return [
+        { id: 'pets', label: 'Питомцы' },
+        { id: 'recommendations', label: 'Рекомендации' },
+        { id: 'sales', label: 'История покупок' },
+      ];
+    }
     const items = [];
     if (isClient) {
       items.push({ id: 'pets', label: 'Питомцы' });
@@ -116,11 +263,14 @@ function App() {
       items.push({ id: 'clients', label: 'Клиенты' });
     }
     if (isAdmin) {
-      items.push({ id: 'users', label: 'Пользователи' });
+      /* Вкладка переименована: Пользователи -> Сотрудники */
+      items.push({ id: 'users', label: 'Сотрудники' });
       items.push({ id: 'audit', label: 'Аудит' });
     }
+    /* Поддержка доступна всем */
+    items.push({ id: 'feedback', label: 'Поддержка' });
     return items;
-  }, [isAdmin, isClient, isSeller]);
+  }, [isAdmin, isClient, isSeller, token]);
 
   const sectionTitles = {
     products: 'Товары',
@@ -129,9 +279,12 @@ function App() {
     recommendations: 'Рекомендации',
     sales: 'История покупок',
     clients: 'Клиенты',
-    users: 'Пользователи',
+    /* Переименовано */
+    users: 'Сотрудники',
     audit: 'Журнал действий',
+    feedback: 'Поддержка и обратная связь',
   };
+
   const categoryNameById = useMemo(
     () => Object.fromEntries(categories.map((cat) => [cat.id, cat.name])),
     [categories]
@@ -144,12 +297,14 @@ function App() {
     () =>
       products.filter((item) => {
         const q = productSearch.toLowerCase();
-        const matchesSearch = item.name.toLowerCase().includes(q);
+        const categoryName = (categoryNameById[item.category_id] || '').toLowerCase();
+        /* Поиск по названию товара и по категории */
+        const matchesSearch = item.name.toLowerCase().includes(q) || categoryName.includes(q);
         const matchesCat =
           productCategoryFilter === null || Number(item.category_id) === Number(productCategoryFilter);
         return matchesSearch && matchesCat;
       }),
-    [products, productSearch, productCategoryFilter]
+    [products, productSearch, productCategoryFilter, categoryNameById]
   );
 
   async function api(path, options = {}) {
@@ -175,14 +330,25 @@ function App() {
   }
 
   async function loadSectionData(section) {
+    /* Товары и категории загружаются без токена */
+    if (section === 'products') {
+      setLoading(true);
+      setError('');
+      try {
+        setProducts(await api('/products/'));
+        if (categories.length === 0) setCategories(await api('/categories/'));
+      } catch (e) {
+        setError(e.message);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     if (!token) return;
     setLoading(true);
     setError('');
     try {
-      if (section === 'products') {
-        setProducts(await api('/products/'));
-        if (categories.length === 0) setCategories(await api('/categories/'));
-      }
       if (section === 'categories') setCategories(await api('/categories/'));
       if (section === 'pets') setPets(await api(isAdmin ? '/pets/' : '/pets/my'));
       if (section === 'sales') {
@@ -196,6 +362,10 @@ function App() {
         setRecommendations(await api('/recommendations/my'));
       }
       if (section === 'audit') setAuditLogs(await api('/audit/all'));
+      if (section === 'feedback' && isAdmin) {
+        const fb = await api('/feedback/');
+        setFeedbacks(Array.isArray(fb) ? fb : []);
+      }
     } catch (e) {
       setError(e.message);
     } finally {
@@ -212,8 +382,8 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
+  /* Загружаем категории для сайдбара без авторизации */
   useEffect(() => {
-    if (!token || !user) return;
     (async () => {
       try {
         const cats = await api('/categories/');
@@ -223,13 +393,17 @@ function App() {
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, user?.id]);
+  }, []);
 
   useEffect(() => {
-    if (!token || !user) return;
     loadSectionData(activeSection);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSection, token, user?.role]);
+
+  /* Переход к разделу — гость попадает в раздел и видит блок авторизации */
+  const goToSection = (sectionId) => {
+    setActiveSection(sectionId);
+  };
 
   const handleAuthSubmit = async (e) => {
     e.preventDefault();
@@ -243,6 +417,7 @@ function App() {
         });
         localStorage.setItem('token', data.access_token);
         setToken(data.access_token);
+        setShowAuthModal(false);
         setMessage('Вход выполнен');
       } else {
         await api('/auth/register', {
@@ -269,6 +444,7 @@ function App() {
     setUsers([]);
     setRecommendations([]);
     setAuditLogs([]);
+    setActiveSection('products');
   };
 
   const saveProduct = async (e) => {
@@ -301,6 +477,74 @@ function App() {
     }
   };
 
+  /* Загрузка картинки товара из файлов */
+  const uploadImage = async (file, productId) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const headers = {};
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const res = await fetch(`${API_BASE}/products/${productId}/upload-image`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+    if (!res.ok) throw new Error('Ошибка загрузки картинки');
+    const data = await res.json();
+    return { ...data, image_url: `${API_BASE}${data.image_url}` };
+  };
+
+  /* Создать товар и сразу загрузить картинку если выбрана */
+  const saveProductWithImage = async (e) => {
+    e.preventDefault();
+    setError('');
+    try {
+      const { imageFile, ...formData } = productForm;
+      const created = await api('/products/', {
+        method: 'POST',
+        body: JSON.stringify({
+          ...formData,
+          category_id: Number(formData.category_id),
+          price: Number(formData.price),
+          quantity: Number(formData.quantity || 0),
+        }),
+      });
+      if (imageFile) {
+        await uploadImage(imageFile, created.id);
+      }
+      setMessage('Товар создан');
+      setProductForm({ category_id: '', name: '', article: '', description: '', price: '', quantity: '', unit: 'шт', image_url: '', imageFile: null });
+      loadSectionData('products');
+    } catch (e2) {
+      setError(e2.message);
+    }
+  };
+
+  /* Обновить товар и загрузить новую картинку если выбрана */
+  const updateProductWithImage = async (e) => {
+    e.preventDefault();
+    setError('');
+    try {
+      const { imageFile, ...formData } = editForm;
+      await api(`/products/${editingProduct.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          ...formData,
+          category_id: Number(formData.category_id),
+          price: Number(formData.price),
+          quantity: Number(formData.quantity || 0),
+        }),
+      });
+      if (imageFile) {
+        await uploadImage(imageFile, editingProduct.id);
+      }
+      setMessage('Товар обновлён');
+      closeEditModal();
+      loadSectionData('products');
+    } catch (e2) {
+      setError(e2.message);
+    }
+  };
+
   const removeProduct = async (id) => {
     try {
       await api(`/products/${id}`, { method: 'DELETE' });
@@ -310,8 +554,62 @@ function App() {
       setError(e.message);
     }
   };
+
   const openProductDetails = (product) => setSelectedProduct(product);
   const closeProductDetails = () => setSelectedProduct(null);
+
+  /* Открыть модальное окно редактирования товара */
+  const openEditModal = (product) => {
+    setEditingProduct(product);
+    setEditForm({
+      name: product.name,
+      article: product.article || '',
+      price: product.price,
+      quantity: product.quantity || '',
+      unit: product.unit || '',
+      image_url: product.image_url || '',
+      description: product.description || '',
+      category_id: product.category_id || ''
+    });
+    setIsEditModalOpen(true);
+  };
+
+  const closeEditModal = () => {
+    setIsEditModalOpen(false);
+    setEditingProduct(null);
+    setEditForm({
+      name: '',
+      article: '',
+      price: '',
+      quantity: '',
+      unit: '',
+      image_url: '',
+      description: '',
+      category_id: ''
+    });
+  };
+
+  /* Сохранить изменения товара */
+  const updateProduct = async (e) => {
+    e.preventDefault();
+    setError('');
+    try {
+      await api(`/products/${editingProduct.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          ...editForm,
+          category_id: Number(editForm.category_id),
+          price: Number(editForm.price),
+          quantity: Number(editForm.quantity || 0),
+        }),
+      });
+      setMessage('Товар обновлён');
+      closeEditModal();
+      loadSectionData('products');
+    } catch (e2) {
+      setError(e2.message);
+    }
+  };
 
   const saveCategory = async (e) => {
     e.preventDefault();
@@ -388,15 +686,87 @@ function App() {
     }
   };
 
+  /* Создать сотрудника — только роль seller */
   const saveUser = async (e) => {
     e.preventDefault();
     try {
       await api('/users/', { method: 'POST', body: JSON.stringify(userForm) });
-      setMessage('Пользователь создан');
+      setMessage('Сотрудник создан');
       setUserForm({ email: '', password: '', full_name: '', phone: '', role: 'seller' });
       loadSectionData('users');
     } catch (e2) {
       setError(e2.message);
+    }
+  };
+
+  /* Создать клиента */
+  const saveClient = async (e) => {
+    e.preventDefault();
+    try {
+      await api('/clients/', {
+        method: 'POST',
+        body: JSON.stringify({ ...clientForm }),
+      });
+      setMessage('Клиент создан');
+      setClientForm({ email: '', password: '', full_name: '', phone: '' });
+      loadSectionData('clients');
+    } catch (e2) {
+      setError(e2.message);
+    }
+  };
+
+  /* Открыть форму редактирования клиента */
+  const openEditClient = (client) => {
+    setEditingClient(client);
+    setEditClientForm({ full_name: client.full_name, phone: client.phone || '' });
+    setIsEditClientOpen(true);
+  };
+
+  const closeEditClient = () => {
+    setIsEditClientOpen(false);
+    setEditingClient(null);
+    setEditClientForm({ full_name: '', phone: '' });
+  };
+
+  /* Сохранить изменения клиента */
+  const updateClient = async (e) => {
+    e.preventDefault();
+    try {
+      await api(`/clients/${editingClient.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(editClientForm),
+      });
+      setMessage('Данные клиента обновлены');
+      closeEditClient();
+      loadSectionData('clients');
+    } catch (e2) {
+      setError(e2.message);
+    }
+  };
+
+  /* Отправить обращение в поддержку */
+  const saveFeedback = async (e) => {
+    e.preventDefault();
+    setError('');
+    try {
+      await api('/feedback/', {
+        method: 'POST',
+        body: JSON.stringify(feedbackForm),
+      });
+      setMessage('Обращение отправлено! Мы свяжемся с вами в ближайшее время.');
+      setFeedbackForm({ name: '', email: '', subject: '', message: '' });
+    } catch (e2) {
+      setError(e2.message);
+    }
+  };
+
+  /* Изменить статус обращения — только для администратора */
+  const updateFeedbackStatus = async (id, status) => {
+    try {
+      await api(`/feedback/${id}/status?status=${status}`, { method: 'PUT' });
+      setFeedbacks(feedbacks.map(f => f.id === id ? { ...f, status } : f));
+    } catch (e) {
+      setError(e.message);
     }
   };
 
@@ -423,7 +793,7 @@ function App() {
   const blockUser = async (id) => {
     try {
       await api(`/users/${id}/block`, { method: 'PUT' });
-      setMessage('Пользователь заблокирован');
+      setMessage('Сотрудник заблокирован');
       loadSectionData('users');
     } catch (e) {
       setError(e.message);
@@ -433,7 +803,7 @@ function App() {
   const unblockUser = async (id) => {
     try {
       await api(`/users/${id}/unblock`, { method: 'PUT' });
-      setMessage('Пользователь разблокирован');
+      setMessage('Сотрудник разблокирован');
       loadSectionData('users');
     } catch (e) {
       setError(e.message);
@@ -466,61 +836,90 @@ function App() {
     setActiveSection('products');
   };
 
-                          /* ---------АВТОРИЗАЦИЯ -------------*/
-              
-  if (!token) {
-    return (
-      <div className="auth-page">
-        <div className="card auth-card auth-figma">
-          <h1 className="auth-brand">Зоомагазин</h1>
-          <h2 className="auth-title">{authMode === 'login' ? 'Вход в систему' : 'Регистрация'}</h2>
-          <form className="auth-form" onSubmit={handleAuthSubmit}>
-            <label htmlFor="email">Email</label>
-            <input id="email" placeholder="example@email.com" type="email" value={authForm.email} onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })} required />
-            <label htmlFor="password">Пароль</label>
-            <div className="password-wrap">
-              <input
-                id="password"
-                placeholder="Минимум 6 символов"
-                type={showPassword ? 'text' : 'password'}
-                value={authForm.password}
-                onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })}
-                required
-              />
-              <button type="button" className="password-toggle" onClick={() => setShowPassword((v) => !v)}>
-                {showPassword ? '⌣' : '👁️'}
-              </button>
-            </div>
-            {authMode === 'register' && (
-              <>
-                <label htmlFor="full_name">Имя Фамилия</label>
-                <input id="full_name" placeholder="Иван Иванов" value={authForm.full_name} onChange={(e) => setAuthForm({ ...authForm, full_name: e.target.value })} required />
-                <label htmlFor="phone">Телефон</label>
-                <input id="phone" placeholder="+7..." value={authForm.phone} onChange={(e) => setAuthForm({ ...authForm, phone: e.target.value })} />
-              </>
-            )}
-            <button type="submit" className="primary auth-submit">{authMode === 'login' ? 'Войти' : 'Зарегистрироваться'}</button>
-          </form>
-          <button className="link-btn" onClick={() => setAuthMode(authMode === 'login' ? 'register' : 'login')}>
-            {authMode === 'login' ? 'Зарегистрироваться' : 'Уже есть аккаунт? Войти'}
-          </button>
-          {error && <p className="error-text auth-notice">{error}</p>}
-          {message && <p className="success-text auth-notice">{message}</p>}
-        </div>
-      </div>
-    );
-  }
+  /* --------- МОДАЛЬНОЕ ОКНО АВТОРИЗАЦИИ ------------- */
 
-                               /* ---------БОКОВАЯ ПАНЕЛЬ УПРАВЛЕНИЯ -------------*/
+  const authModalContent = (
+    <div className="modal-overlay" onClick={() => setShowAuthModal(false)}>
+      <div className="modal-card auth-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-top">
+          <h3>{authMode === 'login' ? 'Вход в систему' : 'Регистрация'}</h3>
+          <button onClick={() => setShowAuthModal(false)}>X</button>
+        </div>
+        <form className="auth-form" onSubmit={handleAuthSubmit}>
+          <label htmlFor="m-email">Email</label>
+          <input id="m-email" placeholder="example@email.com" type="email"
+            value={authForm.email}
+            onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })} required />
+          <label htmlFor="m-password">Пароль</label>
+          <div className="password-wrap">
+            <input id="m-password" placeholder="Минимум 6 символов"
+              type={showPassword ? 'text' : 'password'}
+              value={authForm.password}
+              onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })}
+              required />
+            <button type="button" className="password-toggle"
+              onClick={() => setShowPassword((v) => !v)}>
+              {showPassword ? 'скрыть' : 'показать'}
+            </button>
+          </div>
+          {authMode === 'register' && (
+            <>
+              <label htmlFor="m-full_name">Имя Фамилия</label>
+              <input id="m-full_name" placeholder="Иван Иванов"
+                value={authForm.full_name}
+                onChange={(e) => setAuthForm({ ...authForm, full_name: e.target.value })} required />
+              <label htmlFor="m-phone">Телефон</label>
+              <input id="m-phone" placeholder="+7..."
+                value={authForm.phone}
+                onChange={(e) => setAuthForm({ ...authForm, phone: e.target.value })} />
+            </>
+          )}
+          <button type="submit" className="primary auth-submit">
+            {authMode === 'login' ? 'Войти' : 'Зарегистрироваться'}
+          </button>
+        </form>
+        <button className="link-btn"
+          onClick={() => setAuthMode(authMode === 'login' ? 'register' : 'login')}>
+          {authMode === 'login' ? 'Зарегистрироваться' : 'Уже есть аккаунт? Войти'}
+        </button>
+        {error && <p className="error-text auth-notice">{error}</p>}
+        {message && <p className="success-text auth-notice">{message}</p>}
+      </div>
+    </div>
+  );
+
+  /* --------- БОКОВАЯ ПАНЕЛЬ УПРАВЛЕНИЯ ------------- */
 
   return (
-    <div className="layout">
+    <div className="layout-wrapper">
+      <Header
+        user={user}
+        onLoginClick={() => setShowAuthModal(true)}
+        onLogout={handleLogout}
+        productSearch={productSearch}
+        setProductSearch={setProductSearch}
+      />
+      <div className="layout">
+      {showAuthModal && authModalContent}
+
       <aside className="sidebar">
-        <h2 className="sidebar-brand">Зоомагазин</h2>
-        <div className="user-chip">
-          <p className="user-name">{user?.full_name}</p>
-          <p className="user-role">{roleLabel(user?.role)}</p>
-        </div>
+        {/* Если пользователь вошёл — показываем имя и кнопку выхода */}
+        {user ? (
+          <div className="user-chip">
+            <p className="user-name">{user?.full_name}</p>
+            <p className="user-role">{roleLabel(user?.role)}</p>
+          </div>
+        ) : (
+          /* Если не вошёл — показываем кнопку входа */
+          <button
+            type="button"
+            className="primary login-sidebar-btn"
+            onClick={() => setShowAuthModal(true)}
+          >
+            Войти / Зарегистрироваться
+          </button>
+        )}
+
         <nav className="menu">
           <button
             type="button"
@@ -530,7 +929,6 @@ function App() {
               setActiveSection('products');
             }}
           >
-            
             <span>Товары</span>
           </button>
 
@@ -540,9 +938,8 @@ function App() {
               className="menu-item sidebar-dropdown-toggle"
               onClick={() => setSidebarCategoriesOpen((v) => !v)}
             >
-              
               <span className="sidebar-dropdown-label">Категории</span>
-              <span className="sidebar-dropdown-chevron">{sidebarCategoriesOpen ? '▲' : '▼'}</span>
+              <span className="sidebar-dropdown-chevron">{sidebarCategoriesOpen ? 'v' : '>'}</span>
             </button>
             {sidebarCategoriesOpen && (
               <div className="sidebar-dropdown-list">
@@ -584,22 +981,26 @@ function App() {
             )}
           </div>
 
+          {/* Разделы только для авторизованных */}
           {sections.map((section) => (
             <button
               key={section.id}
               type="button"
               className={activeSection === section.id ? 'menu-item active' : 'menu-item'}
-              onClick={() => setActiveSection(section.id)}
+              onClick={() => goToSection(section.id)}
             >
-             
               <span>{section.label}</span>
             </button>
           ))}
         </nav>
-        <button type="button" className="logout-btn" onClick={handleLogout}>
-          Выйти
-        </button>
+
+        {user && (
+          <button type="button" className="logout-btn" onClick={handleLogout}>
+            Выйти
+          </button>
+        )}
       </aside>
+
       <main className="content">
         <header className="topbar">
           <h1>{sectionTitles[activeSection] || 'Панель'}</h1>
@@ -607,21 +1008,48 @@ function App() {
         {loading && <p className="muted app-notice">Загрузка...</p>}
         {error && <p className="error-text app-notice">{error}</p>}
 
+        {/* Блок-заглушка для гостя в разделе, требующем авторизации */}
+        {!token && activeSection !== 'products' && activeSection !== 'categories' && (
+          <div className="auth-required-block">
+            <h3>Требуется вход в аккаунт</h3>
+            <p>Этот раздел доступен только зарегистрированным пользователям.</p>
+            <button
+              type="button"
+              className="primary"
+              onClick={() => setShowAuthModal(true)}
+            >
+              Войти / Зарегистрироваться
+            </button>
+          </div>
+        )}
+
         {activeSection === 'products' && (
           <section className="card section-card">
-            <div className="section-header">
-              <input
-                className="search-input"
-                placeholder="Поиск по названию..."
-                value={productSearch}
-                onChange={(e) => setProductSearch(e.target.value)}
-              />
+            {/* Фильтр по категориям */}
+            <div className="category-filter">
+              <button
+                type="button"
+                className={productCategoryFilter === null ? 'category-chip active' : 'category-chip'}
+                onClick={() => setProductCategoryFilter(null)}
+              >
+                Все
+              </button>
+              {categories.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  className={productCategoryFilter === c.id ? 'category-chip active' : 'category-chip'}
+                  onClick={() => setProductCategoryFilter(c.id)}
+                >
+                  {c.name}
+                </button>
+              ))}
             </div>
 
-                                {/*---------ДОБАВЛЕНИЕ ТОВАРА -------------*/}
+            {/*---------ДОБАВЛЕНИЕ ТОВАРА ------------- */}
 
             {isAdmin && (
-              <form className="form-grid" onSubmit={saveProduct}>
+              <form className="form-grid" onSubmit={saveProductWithImage}>
                 <h3 className="section-form-title">Добавить товар</h3>
                 <select
                   value={productForm.category_id}
@@ -630,36 +1058,63 @@ function App() {
                 >
                   <option value="">Выберите категорию</option>
                   {categories.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
+                    <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
                 </select>
-                <input placeholder="Название" value={productForm.name} onChange={(e) => setProductForm({ ...productForm, name: e.target.value })} required />
-                <input placeholder="Артикул" value={productForm.article} onChange={(e) => setProductForm({ ...productForm, article: e.target.value })} />
-                <input placeholder="Цена" type="number" step="0.01" value={productForm.price} onChange={(e) => setProductForm({ ...productForm, price: e.target.value })} required />
-                <input placeholder="Кол-во" type="number" value={productForm.quantity} onChange={(e) => setProductForm({ ...productForm, quantity: e.target.value })} />
-                <input placeholder="Ед. изм" value={productForm.unit} onChange={(e) => setProductForm({ ...productForm, unit: e.target.value })} />
-                <input placeholder="URL картинки" value={productForm.image_url} onChange={(e) => setProductForm({ ...productForm, image_url: e.target.value })} />
-                <textarea placeholder="Описание" value={productForm.description} onChange={(e) => setProductForm({ ...productForm, description: e.target.value })} />
+                <input placeholder="Название" value={productForm.name}
+                  onChange={(e) => setProductForm({ ...productForm, name: e.target.value })} required />
+                <input placeholder="Артикул" value={productForm.article}
+                  onChange={(e) => setProductForm({ ...productForm, article: e.target.value })} />
+                {/* Цена не может быть ниже 0.01 */}
+                <input placeholder="Цена" type="number" step="0.01" min="0.01"
+                  value={productForm.price}
+                  onChange={(e) => setProductForm({ ...productForm, price: e.target.value })} required />
+                {/* Количество не может быть отрицательным */}
+                <input placeholder="Кол-во" type="number" min="0"
+                  value={productForm.quantity}
+                  onChange={(e) => setProductForm({ ...productForm, quantity: e.target.value })} />
+                <input placeholder="Ед. изм" value={productForm.unit}
+                  onChange={(e) => setProductForm({ ...productForm, unit: e.target.value })} />
+                <div>
+                  <label style={{fontSize:13,color:'#496580',display:'block',marginBottom:4}}>Картинка</label>
+                  <label className="file-upload-btn">
+                    Выбрать файл
+                    <input type="file" accept="image/*" style={{display:'none'}}
+                      onChange={(e) => setProductForm({ ...productForm, imageFile: e.target.files[0] || null })} />
+                  </label>
+                  {productForm.imageFile && (
+                    <span className="file-upload-name">{productForm.imageFile.name}</span>
+                  )}
+                  <input placeholder="Или вставьте URL картинки" value={productForm.image_url}
+                    onChange={(e) => setProductForm({ ...productForm, image_url: e.target.value })}
+                    style={{marginTop:6}} />
+                </div>
+                <textarea placeholder="Описание" value={productForm.description}
+                  onChange={(e) => setProductForm({ ...productForm, description: e.target.value })} />
                 <button type="submit" className="primary">Сохранить</button>
               </form>
             )}
+
             <div className="product-grid">
               {filteredProducts.map((item) => (
                 <article key={item.id} className="product-card">
                   <div className="product-thumb">
-                    <img src={item.image_url || 'https://images.unsplash.com/photo-1589924691995-400dc9ecc119?w=600&h=400&fit=crop'} alt={item.name} />
+                    <img
+                      src={imgUrl(item.image_url)}
+                      alt={item.name}
+                    />
                   </div>
                   <div className="product-body">
                     <h3>{item.name}</h3>
-                    
                     <div className="product-meta">
                       <span className="product-price">{formatMoney(item.price)}</span>
-                      
                     </div>
                     <div className="product-actions">
                       <button className="primary" onClick={() => openProductDetails(item)}>Подробнее</button>
+                      {/* Кнопка редактирования товара — только для администратора */}
+                      {isAdmin && (
+                        <button className="ghost-btn" onClick={() => openEditModal(item)}>Изменить</button>
+                      )}
                       {isAdmin && <button onClick={() => removeProduct(item.id)}>Удалить</button>}
                     </div>
                   </div>
@@ -688,23 +1143,17 @@ function App() {
               >
                 <option value="">Без родительской категории</option>
                 {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
+                  <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
-              <button className="primary" type="submit">
-                Добавить
-              </button>
+              <button className="primary" type="submit">Добавить</button>
             </form>
             <ul className="category-admin-list">
               {categories.map((c) => (
                 <li key={c.id} className="category-admin-row">
                   <span className="category-admin-name">{c.name}</span>
                   {c.parent_id != null && (
-                    <span className="muted">
-                      вложена в: {categoryNameById[c.parent_id] || 'категория'}
-                    </span>
+                    <span className="muted">вложена в: {categoryNameById[c.parent_id] || 'категория'}</span>
                   )}
                 </li>
               ))}
@@ -712,7 +1161,7 @@ function App() {
           </section>
         )}
 
-                                  {/* --------ПИТОМЦЫ ------------- */}
+        {/* -------- ПИТОМЦЫ ------------- */}
 
         {activeSection === 'pets' && (
           <section className="card section-card">
@@ -728,8 +1177,10 @@ function App() {
                   onChange={(e) => setPetForm({ ...petForm, owner_id: e.target.value })}
                 />
               )}
-              <input placeholder="Кличка" value={petForm.name} onChange={(e) => setPetForm({ ...petForm, name: e.target.value })} required />
-              <select value={petForm.species} onChange={(e) => setPetForm({ ...petForm, species: e.target.value })}>
+              <input placeholder="Кличка" value={petForm.name}
+                onChange={(e) => setPetForm({ ...petForm, name: e.target.value })} required />
+              <select value={petForm.species}
+                onChange={(e) => setPetForm({ ...petForm, species: e.target.value })}>
                 <option value="dog">Собака</option>
                 <option value="cat">Кошка</option>
                 <option value="bird">Птица</option>
@@ -737,10 +1188,14 @@ function App() {
                 <option value="rodent">Грызун</option>
                 <option value="other">Другое</option>
               </select>
-              <input placeholder="Порода" value={petForm.breed} onChange={(e) => setPetForm({ ...petForm, breed: e.target.value })} />
-              <input placeholder="Вес, кг" value={petForm.weight} onChange={(e) => setPetForm({ ...petForm, weight: e.target.value })} />
-              <input placeholder="Обхват, см" value={petForm.body_girth} onChange={(e) => setPetForm({ ...petForm, body_girth: e.target.value })} />
-              <input placeholder="Длина спины, см" value={petForm.back_length} onChange={(e) => setPetForm({ ...petForm, back_length: e.target.value })} />
+              <input placeholder="Порода" value={petForm.breed}
+                onChange={(e) => setPetForm({ ...petForm, breed: e.target.value })} />
+              <input placeholder="Вес, кг" value={petForm.weight}
+                onChange={(e) => setPetForm({ ...petForm, weight: e.target.value })} />
+              <input placeholder="Обхват, см" value={petForm.body_girth}
+                onChange={(e) => setPetForm({ ...petForm, body_girth: e.target.value })} />
+              <input placeholder="Длина спины, см" value={petForm.back_length}
+                onChange={(e) => setPetForm({ ...petForm, back_length: e.target.value })} />
               <button type="submit" className="primary">Сохранить</button>
             </form>
             <table className="data-table">
@@ -764,8 +1219,7 @@ function App() {
           </section>
         )}
 
-
-                                 {/* --------- ИСТОРИЯ ПОКУПОК ------------- */}
+        {/* --------- ИСТОРИЯ ПОКУПОК ------------- */}
 
         {activeSection === 'sales' && (
           <section className="card section-card">
@@ -777,10 +1231,8 @@ function App() {
                   value={saleForm.client_id}
                   onChange={(e) => setSaleForm({ ...saleForm, client_id: e.target.value })}
                 />
-                <select
-                  value={saleForm.payment_type}
-                  onChange={(e) => setSaleForm({ ...saleForm, payment_type: e.target.value })}
-                >
+                <select value={saleForm.payment_type}
+                  onChange={(e) => setSaleForm({ ...saleForm, payment_type: e.target.value })}>
                   <option value="cash">Наличные</option>
                   <option value="card">Банковская карта</option>
                 </select>
@@ -790,9 +1242,7 @@ function App() {
                   onChange={(e) => setSaleForm({ ...saleForm, items: e.target.value })}
                   required
                 />
-                <button className="primary" type="submit">
-                  Создать
-                </button>
+                <button className="primary" type="submit">Создать</button>
               </form>
             )}
             <div className="purchase-list">
@@ -808,16 +1258,10 @@ function App() {
                     {(sale.items || []).map((line) => {
                       const p = productById[line.product_id];
                       return (
-                        <article
-                          key={`${sale.id}-${line.id}`}
-                          className="product-card product-card-compact"
-                        >
+                        <article key={`${sale.id}-${line.id}`} className="product-card product-card-compact">
                           <div className="product-thumb">
                             <img
-                              src={
-                                p?.image_url ||
-                                'https://images.unsplash.com/photo-1589924691995-400dc9ecc119?w=600&h=400&fit=crop'
-                              }
+                              src={imgUrl(p?.image_url)}
                               alt={p?.name || 'Товар'}
                             />
                           </div>
@@ -843,21 +1287,28 @@ function App() {
           </section>
         )}
 
-                                  {/*---------КЛИЕНТЫ -------------*/}
+        {/*---------КЛИЕНТЫ ------------- */}
 
         {activeSection === 'clients' && (
           <section className="card section-card">
             <div className="section-header">
               <h3 className="section-title">Клиенты</h3>
             </div>
-            <input placeholder="Email" type="email" value={userForm.email} onChange={(e) => setUserForm({ ...userForm, email: e.target.value })} required />
-              <input placeholder="Пароль" type="password" value={userForm.password} onChange={(e) => setUserForm({ ...userForm, password: e.target.value })} required />
-              <input placeholder="Имя Фамилия" value={userForm.full_name} onChange={(e) => setUserForm({ ...userForm, full_name: e.target.value })} required />
-              <input placeholder="Телефон" value={userForm.phone} onChange={(e) => setUserForm({ ...userForm, phone: e.target.value })} />
-              <select value={userForm.role} onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}>
-                <option value="client">Клиент</option>
-              </select>
+
+            {/* Форма создания клиента */}
+            <form className="form-grid" onSubmit={saveClient}>
+              <h3 className="section-form-title">Добавить клиента</h3>
+              <input placeholder="Email" type="email" value={clientForm.email}
+                onChange={(e) => setClientForm({ ...clientForm, email: e.target.value })} required />
+              <input placeholder="Пароль" type="password" value={clientForm.password}
+                onChange={(e) => setClientForm({ ...clientForm, password: e.target.value })} required />
+              <input placeholder="Имя Фамилия" value={clientForm.full_name}
+                onChange={(e) => setClientForm({ ...clientForm, full_name: e.target.value })} required />
+              <input placeholder="Телефон" value={clientForm.phone}
+                onChange={(e) => setClientForm({ ...clientForm, phone: e.target.value })} />
               <button className="primary" type="submit">Создать</button>
+            </form>
+
             <table className="data-table">
               <thead>
                 <tr>
@@ -873,17 +1324,18 @@ function App() {
                     <td>{c.full_name}</td>
                     <td>{c.email}</td>
                     <td>{c.is_active ? 'Активен' : 'Заблокирован'}</td>
-                    <td>
-                      {isAdmin &&
-                        (c.is_active ? (
-                          <button type="button" onClick={() => blockClient(c.id)}>
-                            Заблокировать
-                          </button>
+                    <td className="table-actions">
+                      {/* Кнопка редактирования клиента */}
+                      <button type="button" className="ghost-btn" onClick={() => openEditClient(c)}>
+                        Изменить
+                      </button>
+                      {isAdmin && (
+                        c.is_active ? (
+                          <button type="button" onClick={() => blockClient(c.id)}>Заблокировать</button>
                         ) : (
-                          <button type="button" onClick={() => unblockClient(c.id)}>
-                            Разблокировать
-                          </button>
-                        ))}
+                          <button type="button" onClick={() => unblockClient(c.id)}>Разблокировать</button>
+                        )
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -892,22 +1344,27 @@ function App() {
           </section>
         )}
 
-                                  {/*---------СОТРУДНИКИ -------------*/}
+        {/*---------СОТРУДНИКИ (переименовано из Пользователи) ------------- */}
 
         {activeSection === 'users' && isAdmin && (
           <section className="card section-card">
             <div className="section-header">
             </div>
             <form className="form-grid" onSubmit={saveUser}>
-              <h3 className="section-form-title">Создать сотрудника или пользователя</h3>
-              <input placeholder="Email" type="email" value={userForm.email} onChange={(e) => setUserForm({ ...userForm, email: e.target.value })} required />
-              <input placeholder="Пароль" type="password" value={userForm.password} onChange={(e) => setUserForm({ ...userForm, password: e.target.value })} required />
-              <input placeholder="ФИО" value={userForm.full_name} onChange={(e) => setUserForm({ ...userForm, full_name: e.target.value })} required />
-              <input placeholder="Телефон" value={userForm.phone} onChange={(e) => setUserForm({ ...userForm, phone: e.target.value })} />
-              <select value={userForm.role} onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}>
+              {/* Только сотрудник — вариант admin убран */}
+              <h3 className="section-form-title">Создать сотрудника</h3>
+              <input placeholder="Email" type="email" value={userForm.email}
+                onChange={(e) => setUserForm({ ...userForm, email: e.target.value })} required />
+              <input placeholder="Пароль" type="password" value={userForm.password}
+                onChange={(e) => setUserForm({ ...userForm, password: e.target.value })} required />
+              <input placeholder="ФИО" value={userForm.full_name}
+                onChange={(e) => setUserForm({ ...userForm, full_name: e.target.value })} required />
+              <input placeholder="Телефон" value={userForm.phone}
+                onChange={(e) => setUserForm({ ...userForm, phone: e.target.value })} />
+              <select value={userForm.role}
+                onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}>
+                {/* Только продавец — вариант admin недоступен */}
                 <option value="seller">Продавец</option>
-                <option value="admin">Администратор</option>
-                <option value="client">Клиент</option>
               </select>
               <button className="primary" type="submit">Создать</button>
             </form>
@@ -922,7 +1379,7 @@ function App() {
                 </tr>
               </thead>
               <tbody>
-                {users.map((u) => (
+                {users.filter((u) => u.role === 'seller').map((u) => (
                   <tr key={u.id}>
                     <td>{u.full_name}</td>
                     <td>{u.email}</td>
@@ -930,13 +1387,9 @@ function App() {
                     <td>{u.is_active ? 'Активен' : 'Заблокирован'}</td>
                     <td>
                       {u.is_active ? (
-                        <button type="button" onClick={() => blockUser(u.id)}>
-                          Заблокировать
-                        </button>
+                        <button type="button" onClick={() => blockUser(u.id)}>Заблокировать</button>
                       ) : (
-                        <button type="button" onClick={() => unblockUser(u.id)}>
-                          Разблокировать
-                        </button>
+                        <button type="button" onClick={() => unblockUser(u.id)}>Разблокировать</button>
                       )}
                     </td>
                   </tr>
@@ -946,7 +1399,7 @@ function App() {
           </section>
         )}
 
-                                  {/*---------РЕКОМЕНДАЦИИ -------------*/}
+        {/*---------РЕКОМЕНДАЦИИ ------------- */}
 
         {activeSection === 'recommendations' && (
           <section className="card section-card">
@@ -982,10 +1435,7 @@ function App() {
                   <article key={r.id} className="product-card">
                     <div className="product-thumb">
                       <img
-                        src={
-                          p.image_url ||
-                          'https://images.unsplash.com/photo-1589924691995-400dc9ecc119?w=600&h=400&fit=crop'
-                        }
+                        src={imgUrl(p.image_url)}
                         alt={p.name}
                       />
                     </div>
@@ -995,7 +1445,6 @@ function App() {
                       {r.reason && <p className="rec-reason">{r.reason}</p>}
                       <div className="product-meta">
                         <span className="product-price">{formatMoney(p.price)}</span>
-                        
                       </div>
                       <div className="product-actions">
                         <button type="button" className="primary" onClick={() => openProductDetails(p)}>
@@ -1010,7 +1459,135 @@ function App() {
           </section>
         )}
 
-                                  {/*---------АУДИТ -------------*/}
+        {/*---------ПОДДЕРЖКА И ОБРАТНАЯ СВЯЗЬ ------------- */}
+
+        {activeSection === 'feedback' && (
+          <section className="card section-card">
+            <div className="feedback-layout">
+
+              {/* Форма обратной связи — для всех пользователей */}
+              <div className="feedback-form-block">
+                <h3 className="section-title">Напишите нам</h3>
+                <p className="feedback-desc">
+                  Есть вопрос или предложение? Заполните форму и мы ответим вам в ближайшее время.
+                </p>
+                <form onSubmit={saveFeedback} className="feedback-form">
+                  <div className="feedback-row">
+                    <div>
+                      <label className="feedback-label">Ваше имя</label>
+                      <input
+                        placeholder="Иван Иванов"
+                        value={feedbackForm.name}
+                        onChange={(e) => setFeedbackForm({ ...feedbackForm, name: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="feedback-label">Email</label>
+                      <input
+                        type="email"
+                        placeholder="example@mail.ru"
+                        value={feedbackForm.email}
+                        onChange={(e) => setFeedbackForm({ ...feedbackForm, email: e.target.value })}
+                        required
+                      />
+                    </div>
+                  </div>
+                  <label className="feedback-label">Тема обращения</label>
+                  <select
+                    value={feedbackForm.subject}
+                    onChange={(e) => setFeedbackForm({ ...feedbackForm, subject: e.target.value })}
+                    required
+                  >
+                    <option value="">Выберите тему</option>
+                    <option value="Вопрос о товаре">Вопрос о товаре</option>
+                    <option value="Проблема с заказом">Проблема с заказом</option>
+                    <option value="Вопрос об оплате">Вопрос об оплате</option>
+                    <option value="Предложение">Предложение</option>
+                    <option value="Другое">Другое</option>
+                  </select>
+                  <label className="feedback-label">Сообщение</label>
+                  <textarea
+                    placeholder="Опишите ваш вопрос подробнее..."
+                    value={feedbackForm.message}
+                    onChange={(e) => setFeedbackForm({ ...feedbackForm, message: e.target.value })}
+                    rows={5}
+                    required
+                  />
+                  <button type="submit" className="primary feedback-submit">
+                    Отправить обращение
+                  </button>
+                </form>
+              </div>
+
+              {/* Контактная информация */}
+              <div className="feedback-contacts">
+                <h3 className="section-title">Контакты</h3>
+                <div className="feedback-contact-list">
+                  <div className="feedback-contact-card">
+                    <div className="feedback-contact-icon">&#9742;</div>
+                    <div>
+                      <p className="feedback-contact-title">Телефон</p>
+                      <a href="tel:+76665554433" className="feedback-contact-value">+7(666)555-44-33</a>
+                      <p className="feedback-contact-note">Пн-Пт с 9:00 до 18:00</p>
+                    </div>
+                  </div>
+                  <div className="feedback-contact-card">
+                    <div className="feedback-contact-icon">&#9993;</div>
+                    <div>
+                      <p className="feedback-contact-title">Email</p>
+                      <a href="mailto:zootopia@petshop.ru" className="feedback-contact-value">zootopia@petshop.ru</a>
+                      <p className="feedback-contact-note">Ответим в течение 24 часов</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Список обращений — только для администратора */}
+            {isAdmin && feedbacks.length > 0 && (
+              <div style={{marginTop: 32}}>
+                <h3 className="section-title">Входящие обращения</h3>
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Имя</th>
+                      <th>Email</th>
+                      <th>Тема</th>
+                      <th>Сообщение</th>
+                      <th>Статус</th>
+                      <th>Дата</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {feedbacks.map((fb) => (
+                      <tr key={fb.id}>
+                        <td>{fb.name}</td>
+                        <td>{fb.email}</td>
+                        <td>{fb.subject}</td>
+                        <td style={{maxWidth:200, wordBreak:'break-word'}}>{fb.message}</td>
+                        <td>
+                          <select
+                            value={fb.status}
+                            onChange={(e) => updateFeedbackStatus(fb.id, e.target.value)}
+                            className="feedback-status-select"
+                          >
+                            <option value="new">Новое</option>
+                            <option value="in_progress">В работе</option>
+                            <option value="resolved">Решено</option>
+                          </select>
+                        </td>
+                        <td>{new Date(fb.created_at).toLocaleString('ru-RU')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/*---------АУДИТ ------------- */}
 
         {activeSection === 'audit' && isAdmin && (
           <section className="card section-card">
@@ -1040,28 +1617,121 @@ function App() {
           </section>
         )}
       </main>
+
+      {/* Модальное окно подробностей товара */}
       {selectedProduct && (
         <div className="modal-overlay" onClick={closeProductDetails}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-card product-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-top">
-              <h3>{selectedProduct.name}</h3>
-              <button onClick={closeProductDetails}>✕</button>
+              <h3 className="product-modal-title">{selectedProduct.name}</h3>
+              <button className="modal-close-btn" onClick={closeProductDetails}>X</button>
             </div>
-            <img
-              className="modal-image"
-              src={selectedProduct.image_url || 'https://images.unsplash.com/photo-1589924691995-400dc9ecc119?w=1000&h=700&fit=crop'}
-              alt={selectedProduct.name}
-            />
-            <div className="modal-grid">
-              <p><strong>Цена:</strong> {formatMoney(selectedProduct.price)}</p>
-              <p><strong>Остаток:</strong> {selectedProduct.quantity} {selectedProduct.unit}</p>
-              <p><strong>Категория:</strong> {categoryNameById[selectedProduct.category_id] || selectedProduct.category_id}</p>
-              <p><strong>Артикул:</strong> {selectedProduct.article || '-'}</p>
+            <div className="product-modal-body">
+              <div className="product-modal-image-wrap">
+                <img
+                  className="product-modal-image"
+                  src={imgUrl(selectedProduct.image_url)}
+                  alt={selectedProduct.name}
+                />
+              </div>
+              <div className="product-modal-info">
+                <div className="product-modal-price">{formatMoney(selectedProduct.price)}</div>
+                <div className="product-modal-meta">
+                  <div className="product-modal-row">
+                    <span className="product-modal-label">Категория</span>
+                    <span>{categoryNameById[selectedProduct.category_id] || '—'}</span>
+                  </div>
+                  <div className="product-modal-row">
+                    <span className="product-modal-label">Артикул</span>
+                    <span>{selectedProduct.article || '—'}</span>
+                  </div>
+                  <div className="product-modal-row">
+                    <span className="product-modal-label">Остаток</span>
+                    <span>{selectedProduct.quantity} {selectedProduct.unit}</span>
+                  </div>
+                </div>
+                {selectedProduct.description && (
+                  <p className="product-modal-desc">{selectedProduct.description}</p>
+                )}
+              </div>
             </div>
-            <p className="modal-description">{selectedProduct.description || 'Описание не указано.'}</p>
           </div>
         </div>
       )}
+
+      {/* Модальное окно редактирования товара — только для администратора */}
+      {isEditModalOpen && (
+        <div className="modal-overlay" onClick={closeEditModal}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-top">
+              <h3>Редактировать товар</h3>
+              <button onClick={closeEditModal}>X</button>
+            </div>
+            <form className="form-grid" onSubmit={updateProductWithImage}>
+              <select value={editForm.category_id}
+                onChange={(e) => setEditForm({ ...editForm, category_id: e.target.value })} required>
+                <option value="">Выберите категорию</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+              <input placeholder="Название" value={editForm.name}
+                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} required />
+              <input placeholder="Артикул" value={editForm.article}
+                onChange={(e) => setEditForm({ ...editForm, article: e.target.value })} />
+              {/* Цена не может быть ниже 0.01 */}
+              <input placeholder="Цена" type="number" step="0.01" min="0.01"
+                value={editForm.price}
+                onChange={(e) => setEditForm({ ...editForm, price: e.target.value })} required />
+              {/* Количество не может быть отрицательным */}
+              <input placeholder="Кол-во" type="number" min="0"
+                value={editForm.quantity}
+                onChange={(e) => setEditForm({ ...editForm, quantity: e.target.value })} />
+              <input placeholder="Ед. изм" value={editForm.unit}
+                onChange={(e) => setEditForm({ ...editForm, unit: e.target.value })} />
+              <div>
+                <label style={{fontSize:13,color:'#496580',display:'block',marginBottom:4}}>Картинка</label>
+                <label className="file-upload-btn">
+                  Выбрать файл
+                  <input type="file" accept="image/*" style={{display:'none'}}
+                    onChange={(e) => setEditForm({ ...editForm, imageFile: e.target.files[0] || null })} />
+                </label>
+                {editForm.imageFile && (
+                  <span className="file-upload-name">{editForm.imageFile.name}</span>
+                )}
+                <input placeholder="Или вставьте URL картинки" value={editForm.image_url}
+                  onChange={(e) => setEditForm({ ...editForm, image_url: e.target.value })}
+                  style={{marginTop:6}} />
+              </div>
+              <textarea placeholder="Описание" value={editForm.description}
+                onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} />
+              <button type="submit" className="primary">Сохранить изменения</button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Модальное окно редактирования клиента */}
+
+      {isEditClientOpen && (
+        <div className="modal-overlay" onClick={closeEditClient}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-top">
+              <h3>Редактировать клиента</h3>
+              <button onClick={closeEditClient}>X</button>
+            </div>
+            <form className="form-grid" onSubmit={updateClient}>
+              <input placeholder="Имя Фамилия" value={editClientForm.full_name}
+                onChange={(e) => setEditClientForm({ ...editClientForm, full_name: e.target.value })} required />
+              <input placeholder="Телефон" value={editClientForm.phone}
+                onChange={(e) => setEditClientForm({ ...editClientForm, phone: e.target.value })} />
+              <button type="submit" className="primary">Сохранить</button>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+      <Footer setActiveSection={setActiveSection} />
     </div>
   );
 }
