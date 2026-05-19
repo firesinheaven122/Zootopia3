@@ -1,7 +1,6 @@
 from database import SessionLocal
 from models import User, Pet, Category, Product, ProductSpecies, Sale, SaleItem, Recommendation
 from datetime import datetime, timedelta
-import random
 from auth.service import hash_password
 
 db = SessionLocal()
@@ -22,22 +21,20 @@ users = [
     ),
     User(
         email="ivannnpetr@zoo.com",
-        password_hash=hash_password("Sell1er"),
+        password_hash=hash_password("Seller1"),
         full_name="Иван Петров",
         phone="+7(999)222-22-22",
-        role="Клиент",
+        role="client",
         is_active=True
     ),
-
-        User(
+    User(
         email="phara_gleb@gmail.com",
         password_hash=hash_password("Seller2"),
         full_name="Глеб Голубин",
         phone="+7(999)222-22-22",
-        role="Клиент",
+        role="client",
         is_active=True
     ),
-
     User(
         email="anna@mail.com",
         password_hash=hash_password("rtidjlof"),
@@ -78,37 +75,37 @@ print("2. Добавляем питомцев...")
 
 pets = [
     Pet(
-        owner_id=clients[0].id,  
+        owner_id=clients[0].id,
         name="Пепса",
-        species="собака",
+        species="dog",
         breed="Джек-Рассел",
         birth_date=datetime.now() - timedelta(days=365*3)
     ),
     Pet(
-        owner_id=clients[1].id,  
+        owner_id=clients[1].id,
         name="Тихон",
-        species="кот",
+        species="cat",
         breed="Бенгал",
         birth_date=datetime.now() - timedelta(days=365*2)
     ),
     Pet(
         owner_id=clients[1].id,
         name="Пепа",
-        species="птица",
+        species="bird",
         breed="Волнистый попугай",
         birth_date=datetime.now() - timedelta(days=365)
     ),
     Pet(
         owner_id=clients[2].id,
         name="Бусинка",
-        species="собака",
-        breed="Нецкий дог",
+        species="dog",
+        breed="Немецкий дог",
         birth_date=datetime.now() - timedelta(days=365*4)
     ),
     Pet(
-        owner_id=clients[3].id,
+        owner_id=clients[0].id,
         name="Золотце",
-        species="рыба",
+        species="fish",
         breed="Золотая рыбка",
         birth_date=datetime.now() - timedelta(days=180)
     )
@@ -151,7 +148,6 @@ products = [
         price=2500.00,
         quantity=15,
         unit="шт",
-        image_url="/images/rc001.jpg",
         is_active=True
     ),
     Product(
@@ -162,7 +158,6 @@ products = [
         price=3200.00,
         quantity=10,
         unit="шт",
-        image_url="/images/pp002.jpg",
         is_active=True
     ),
     Product(
@@ -173,18 +168,16 @@ products = [
         price=890.00,
         quantity=25,
         unit="шт",
-        image_url="/images/wk003.jpg",
         is_active=True
     ),
     Product(
         category_id=toys.id,
-        name="Мягкая игрушка 'Кость'",
+        name="Мягкая игрушка Кость",
         article="TY004",
         description="Игрушка для собак из прочного латекса",
         price=450.00,
         quantity=30,
         unit="шт",
-        image_url="/images/ty004.jpg",
         is_active=True
     ),
     Product(
@@ -195,7 +188,6 @@ products = [
         price=320.00,
         quantity=40,
         unit="шт",
-        image_url="/images/ty005.jpg",
         is_active=True
     ),
     Product(
@@ -206,7 +198,6 @@ products = [
         price=1800.00,
         quantity=8,
         unit="шт",
-        image_url="/images/bd006.jpg",
         is_active=True
     )
 ]
@@ -345,31 +336,31 @@ recommendations = [
         pet_id=pets[0].id,
         product_id=products[0].id,
         score=0.95,
-        reason="Отлично подходит для немецких овчарок",
+        reason="Отлично подходит для щенков",
         is_shown=True
     ),
     Recommendation(
         client_id=clients[0].id,
-        pet_id=pets[1].id,
+        pet_id=pets[0].id,
         product_id=products[4].id,
         score=0.85,
-        reason="Кошки обожают игрушки с мятой",
+        reason="Популярный товар для питомцев",
         is_shown=True
     ),
     Recommendation(
         client_id=clients[1].id,
-        pet_id=pets[2].id,
+        pet_id=pets[1].id,
         product_id=products[2].id,
         score=0.75,
-        reason="Рекомендуется для попугаев",
+        reason="Рекомендуется для кошек",
         is_shown=False
     ),
     Recommendation(
         client_id=clients[2].id,
-        pet_id=pets[4].id,
-        product_id=products[2].id,
+        pet_id=pets[3].id,
+        product_id=products[1].id,
         score=0.60,
-        reason="Специальный корм",
+        reason="Подходит для крупных пород",
         is_shown=False
     )
 ]
@@ -380,7 +371,7 @@ print(f"    Добавлено {len(recommendations)} рекомендаций")
 
 
 print("\n" + "=" * 50)
-print("✅ БАЗА ДАННЫХ УСПЕШНО ЗАПОЛНЕНА!")
+print("БАЗА ДАННЫХ УСПЕШНО ЗАПОЛНЕНА!")
 print("=" * 50)
 print(f" Пользователей: {db.query(User).count()}")
 print(f" Питомцев: {db.query(Pet).count()}")
@@ -389,6 +380,5 @@ print(f" Товаров: {db.query(Product).count()}")
 print(f" Продаж: {db.query(Sale).count()}")
 print(f" Рекомендаций: {db.query(Recommendation).count()}")
 print("=" * 50)
-
 
 db.close()
