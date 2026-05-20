@@ -50,6 +50,9 @@ class Pet(Base):
     name = Column(String(100), nullable=False)
     species = Column(Enum(SpeciesType))
     breed = Column(String(100))
+    weight = Column(Numeric(6, 2))
+    body_girth = Column(Numeric(6, 2))
+    back_length = Column(Numeric(6, 2))
     birth_date = Column(TIMESTAMP)
     created_at = Column(TIMESTAMP, server_default=func.now())
 
