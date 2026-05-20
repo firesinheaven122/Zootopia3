@@ -1418,3 +1418,10 @@ th, td {
     align-items: flex-start;
   }
 }
+/* УПРАВЛЕНИЕ КАТЕГОРИЯМИ */
+
+.category-admin-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}

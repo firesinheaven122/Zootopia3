@@ -205,6 +205,8 @@ function App() {
     imageFile: null,
   });
   const [categoryForm, setCategoryForm] = useState({ name: '', parent_id: '' });
+  const [editingCategory, setEditingCategory] = useState(null);
+  const [editCategoryForm, setEditCategoryForm] = useState({ name: '', parent_id: '' });
   const [sidebarCategoriesOpen, setSidebarCategoriesOpen] = useState(true);
   const [productCategoryFilter, setProductCategoryFilter] = useState(null);
   const [petForm, setPetForm] = useState({
@@ -636,6 +638,45 @@ function App() {
       });
       setMessage('Категория создана');
       setCategoryForm({ name: '', parent_id: '' });
+      loadSectionData('categories');
+    } catch (e2) {
+      setError(e2.message);
+    }
+  };
+
+  const deleteCategory = async (id) => {
+    if (!window.confirm('Удалить категорию? Это может затронуть товары в ней.')) return;
+    try {
+      await api(`/categories/${id}`, { method: 'DELETE' });
+      setMessage('Категория удалена');
+      loadSectionData('categories');
+    } catch (e2) {
+      setError(e2.message);
+    }
+  };
+
+  const openEditCategory = (cat) => {
+    setEditingCategory(cat);
+    setEditCategoryForm({ name: cat.name, parent_id: cat.parent_id || '' });
+  };
+
+  const closeEditCategory = () => {
+    setEditingCategory(null);
+    setEditCategoryForm({ name: '', parent_id: '' });
+  };
+
+  const updateCategory = async (e) => {
+    e.preventDefault();
+    try {
+      await api(`/categories/${editingCategory.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          name: editCategoryForm.name,
+          parent_id: editCategoryForm.parent_id ? Number(editCategoryForm.parent_id) : null,
+        }),
+      });
+      setMessage('Категория обновлена');
+      closeEditCategory();
       loadSectionData('categories');
     } catch (e2) {
       setError(e2.message);
@@ -1217,6 +1258,10 @@ function App() {
                   {c.parent_id != null && (
                     <span className="muted">вложена в: {categoryNameById[c.parent_id] || 'категория'}</span>
                   )}
+                  <div className="category-admin-actions">
+                    <button className="ghost-btn" onClick={() => openEditCategory(c)}>Изменить</button>
+                    <button onClick={() => deleteCategory(c.id)}>Удалить</button>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -1843,6 +1888,37 @@ function App() {
                 onChange={(e) => setEditClientForm({ ...editClientForm, full_name: e.target.value })} required />
               <input placeholder="Телефон" value={editClientForm.phone}
                 onChange={(e) => setEditClientForm({ ...editClientForm, phone: e.target.value })} />
+              <button type="submit" className="primary">Сохранить</button>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* Модальное окно редактирования категории */}
+      {editingCategory && (
+        <div className="modal-overlay" onClick={closeEditCategory}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-top">
+              <h3>Редактировать категорию</h3>
+              <button onClick={closeEditCategory}>X</button>
+            </div>
+            <form className="form-grid" onSubmit={updateCategory}>
+              <input
+                placeholder="Название категории"
+                value={editCategoryForm.name}
+                onChange={(e) => setEditCategoryForm({ ...editCategoryForm, name: e.target.value })}
+                required
+              />
+              <select
+                value={editCategoryForm.parent_id}
+                onChange={(e) => setEditCategoryForm({ ...editCategoryForm, parent_id: e.target.value })}
+              >
+                <option value="">Без родительской категории</option>
+                {categories
+                  .filter((c) => c.id !== editingCategory.id)
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+              </select>
               <button type="submit" className="primary">Сохранить</button>
             </form>
           </div>
