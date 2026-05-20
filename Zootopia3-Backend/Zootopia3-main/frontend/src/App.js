@@ -62,7 +62,7 @@ function Header({ user, onLoginClick, onLogout, productSearch, setProductSearch,
               {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
             </button>
             <button type="button" onClick={user ? onLogout : onLoginClick} className="header-auth-btn">
-              <span className="header-auth-text">{user ? 'Профиль' : 'Войти'}</span>
+              <span className="header-auth-text">{user ? 'Выйти' : 'Войти'}</span>
             </button>
           </div>
         </div>
@@ -218,10 +218,12 @@ function App() {
     body_girth: '',
     back_length: '',
   });
+  const [editingPet, setEditingPet] = useState(null);
+  const [editPetForm, setEditPetForm] = useState({ name: '', species: 'dog', breed: '', weight: '', body_girth: '', back_length: '' });
   const [saleForm, setSaleForm] = useState({
     client_id: '',
     payment_type: 'cash',
-    items: '',
+    items: [{ product_id: '', quantity: 1 }],
   });
 
   /* Форма создания сотрудника — только роль seller */
@@ -281,8 +283,8 @@ function App() {
       items.push({ id: 'users', label: 'Сотрудники' });
       items.push({ id: 'audit', label: 'Аудит' });
     }
-    /* Поддержка доступна всем */
-    items.push({ id: 'feedback', label: 'Поддержка' });
+    /* Поддержка доступна всем кроме администратора */
+    if (!isAdmin) items.push({ id: 'feedback', label: 'Поддержка' });
     return items;
   }, [isAdmin, isClient, isSeller, token]);
 
@@ -712,17 +714,62 @@ function App() {
     }
   };
 
+  const openEditPet = (pet) => {
+    setEditingPet(pet);
+    setEditPetForm({
+      name: pet.name,
+      species: pet.species || 'dog',
+      breed: pet.breed || '',
+      weight: pet.weight || '',
+      body_girth: pet.body_girth || '',
+      back_length: pet.back_length || '',
+    });
+  };
+
+  const closeEditPet = () => {
+    setEditingPet(null);
+    setEditPetForm({ name: '', species: 'dog', breed: '', weight: '', body_girth: '', back_length: '' });
+  };
+
+  const updatePet = async (e) => {
+    e.preventDefault();
+    try {
+      await api(`/pets/${editingPet.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          ...editPetForm,
+          weight: editPetForm.weight ? Number(editPetForm.weight) : null,
+          body_girth: editPetForm.body_girth ? Number(editPetForm.body_girth) : null,
+          back_length: editPetForm.back_length ? Number(editPetForm.back_length) : null,
+        }),
+      });
+      setMessage('Питомец обновлён');
+      closeEditPet();
+      loadSectionData('pets');
+    } catch (e2) {
+      setError(e2.message);
+    }
+  };
+
+  const deletePet = async (id) => {
+    if (!window.confirm('Удалить питомца?')) return;
+    try {
+      await api(`/pets/${id}`, { method: 'DELETE' });
+      setMessage('Питомец удалён');
+      loadSectionData('pets');
+    } catch (e2) {
+      setError(e2.message);
+    }
+  };
+
   const createSale = async (e) => {
     e.preventDefault();
     try {
       const items = saleForm.items
-        .split(',')
-        .map((item) => item.trim())
-        .filter(Boolean)
-        .map((pair) => {
-          const [productId, quantity] = pair.split(':').map((v) => Number(v.trim()));
-          return { product_id: productId, quantity };
-        });
+        .filter((i) => i.product_id)
+        .map((i) => ({ product_id: Number(i.product_id), quantity: Number(i.quantity) }));
+
+      if (items.length === 0) { setError('Добавьте хотя бы один товар'); return; }
 
       await api('/sales/', {
         method: 'POST',
@@ -733,7 +780,7 @@ function App() {
         }),
       });
       setMessage('Продажа создана');
-      setSaleForm({ client_id: '', payment_type: 'cash', items: '' });
+      setSaleForm({ client_id: '', payment_type: 'cash', items: [{ product_id: '', quantity: 1 }] });
       loadSectionData('sales');
     } catch (e2) {
       setError(e2.message);
@@ -1279,7 +1326,7 @@ function App() {
               <h3 className="section-form-title">Добавить питомца</h3>
               {isAdmin && (
                 <input
-                  placeholder="ID владельца (только для администратора)"
+                  placeholder="ID владельца"
                   value={petForm.owner_id}
                   onChange={(e) => setPetForm({ ...petForm, owner_id: e.target.value })}
                 />
@@ -1311,6 +1358,8 @@ function App() {
                   <th>Кличка</th>
                   <th>Вид</th>
                   <th>Порода</th>
+                  <th>Вес, кг</th>
+                  <th />
                 </tr>
               </thead>
               <tbody>
@@ -1319,6 +1368,11 @@ function App() {
                     <td>{p.name}</td>
                     <td>{speciesLabel(p.species)}</td>
                     <td>{p.breed || '—'}</td>
+                    <td>{p.weight || '—'}</td>
+                    <td className="table-actions">
+                      <button type="button" className="ghost-btn" onClick={() => openEditPet(p)}>Изменить</button>
+                      <button type="button" onClick={() => deletePet(p.id)}>Удалить</button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -1334,23 +1388,79 @@ function App() {
               <form className="form-grid" onSubmit={createSale}>
                 <h3 className="section-form-title">Оформить продажу</h3>
                 <input
-                  placeholder="Клиент (необязательно, внутренний номер)"
+                  placeholder="ID клиента (необязательно)"
+                  type="number"
+                  min="1"
                   value={saleForm.client_id}
                   onChange={(e) => setSaleForm({ ...saleForm, client_id: e.target.value })}
+                  style={{ gridColumn: '1 / -1' }}
                 />
-                <select value={saleForm.payment_type}
-                  onChange={(e) => setSaleForm({ ...saleForm, payment_type: e.target.value })}>
+                <select
+                  value={saleForm.payment_type}
+                  onChange={(e) => setSaleForm({ ...saleForm, payment_type: e.target.value })}
+                  style={{ gridColumn: '1 / -1' }}
+                >
                   <option value="cash">Наличные</option>
                   <option value="card">Банковская карта</option>
                 </select>
-                <input
-                  placeholder="Позиции: номер_товара:количество, через запятую"
-                  value={saleForm.items}
-                  onChange={(e) => setSaleForm({ ...saleForm, items: e.target.value })}
-                  required
-                />
-                <button className="primary" type="submit">Создать</button>
+
+                <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {saleForm.items.map((item, idx) => (
+                    <div key={idx} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <input
+                        placeholder="ID товара"
+                        type="number"
+                        min="1"
+                        value={item.product_id}
+                        onChange={(e) => {
+                          const updated = [...saleForm.items];
+                          updated[idx] = { ...updated[idx], product_id: e.target.value };
+                          setSaleForm({ ...saleForm, items: updated });
+                        }}
+                        style={{ flex: 2 }}
+                        required
+                      />
+                      <input
+                        placeholder="Количество"
+                        type="number"
+                        min="1"
+                        value={item.quantity}
+                        onChange={(e) => {
+                          const updated = [...saleForm.items];
+                          updated[idx] = { ...updated[idx], quantity: e.target.value };
+                          setSaleForm({ ...saleForm, items: updated });
+                        }}
+                        style={{ flex: 1 }}
+                        required
+                      />
+                      {saleForm.items.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => setSaleForm({ ...saleForm, items: saleForm.items.filter((_, i) => i !== idx) })}
+                          style={{ flexShrink: 0 }}
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    className="ghost-btn"
+                    onClick={() => setSaleForm({ ...saleForm, items: [...saleForm.items, { product_id: '', quantity: 1 }] })}
+                  >
+                    + Добавить товар
+                  </button>
+                </div>
+
+                <button className="primary" type="submit" style={{ gridColumn: '1 / -1' }}>Создать продажу</button>
               </form>
+            )}
+            {role === 'client' && (
+              <div className="client-cart-hint">
+                <p className="muted">Чтобы оформить заказ — добавьте товары в корзину и нажмите «Оформить заказ».</p>
+                <button className="primary" onClick={() => setShowCart(true)}>Открыть корзину</button>
+              </div>
             )}
             <div className="purchase-list">
               {sales.length === 0 && <p className="muted">Пока нет покупок</p>}
@@ -1398,10 +1508,6 @@ function App() {
 
         {activeSection === 'clients' && (
           <section className="card section-card">
-            <div className="section-header">
-              <h3 className="section-title">Клиенты</h3>
-            </div>
-
             {/* Форма создания клиента */}
             <form className="form-grid" onSubmit={saveClient}>
               <h3 className="section-form-title">Добавить клиента</h3>
@@ -1419,6 +1525,7 @@ function App() {
             <table className="data-table">
               <thead>
                 <tr>
+                  <th>ID</th>
                   <th>ФИО</th>
                   <th>Email</th>
                   <th>Статус</th>
@@ -1428,15 +1535,15 @@ function App() {
               <tbody>
                 {clients.map((c) => (
                   <tr key={c.id}>
+                    <td className="muted">{c.id}</td>
                     <td>{c.full_name}</td>
                     <td>{c.email}</td>
                     <td>{c.is_active ? 'Активен' : 'Заблокирован'}</td>
                     <td className="table-actions">
-                      {/* Кнопка редактирования клиента */}
                       <button type="button" className="ghost-btn" onClick={() => openEditClient(c)}>
                         Изменить
                       </button>
-                      {isAdmin && (
+                      {isSeller && (
                         c.is_active ? (
                           <button type="button" onClick={() => blockClient(c.id)}>Заблокировать</button>
                         ) : (
@@ -1893,6 +2000,40 @@ function App() {
           </div>
         </div>
       )}
+      {/* Модальное окно редактирования питомца */}
+      {editingPet && (
+        <div className="modal-overlay" onClick={closeEditPet}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-top">
+              <h3>Редактировать питомца</h3>
+              <button onClick={closeEditPet}>X</button>
+            </div>
+            <form className="form-grid" onSubmit={updatePet}>
+              <input placeholder="Кличка" value={editPetForm.name}
+                onChange={(e) => setEditPetForm({ ...editPetForm, name: e.target.value })} required />
+              <select value={editPetForm.species}
+                onChange={(e) => setEditPetForm({ ...editPetForm, species: e.target.value })}>
+                <option value="dog">Собака</option>
+                <option value="cat">Кошка</option>
+                <option value="bird">Птица</option>
+                <option value="fish">Рыба</option>
+                <option value="rodent">Грызун</option>
+                <option value="other">Другое</option>
+              </select>
+              <input placeholder="Порода" value={editPetForm.breed}
+                onChange={(e) => setEditPetForm({ ...editPetForm, breed: e.target.value })} />
+              <input placeholder="Вес, кг" type="number" step="0.01" value={editPetForm.weight}
+                onChange={(e) => setEditPetForm({ ...editPetForm, weight: e.target.value })} />
+              <input placeholder="Обхват, см" type="number" step="0.01" value={editPetForm.body_girth}
+                onChange={(e) => setEditPetForm({ ...editPetForm, body_girth: e.target.value })} />
+              <input placeholder="Длина спины, см" type="number" step="0.01" value={editPetForm.back_length}
+                onChange={(e) => setEditPetForm({ ...editPetForm, back_length: e.target.value })} />
+              <button type="submit" className="primary">Сохранить</button>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Модальное окно редактирования категории */}
       {editingCategory && (
         <div className="modal-overlay" onClick={closeEditCategory}>

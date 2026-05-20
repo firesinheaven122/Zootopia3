@@ -94,11 +94,13 @@ def update_pet(
 def delete_pet(
     pet_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(require_admin)
+    current_user=Depends(get_current_user)
 ):
     pet = db.query(Pet).filter(Pet.id == pet_id).first()
     if not pet:
         raise HTTPException(status_code=404, detail="Питомец не найден")
+    if pet.owner_id != current_user.id and current_user.role.value != "admin":
+        raise HTTPException(status_code=403, detail="Нет доступа")
     db.delete(pet)
     db.commit()
 
