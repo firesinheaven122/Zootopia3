@@ -9,7 +9,6 @@ const ROLE_LABELS = {
 };
 
 const PAYMENT_LABELS = {
-  cash: 'Наличные',
   card: 'Банковская карта',
 };
 
@@ -209,6 +208,7 @@ function App() {
   const [editCategoryForm, setEditCategoryForm] = useState({ name: '', parent_id: '' });
   const [sidebarCategoriesOpen, setSidebarCategoriesOpen] = useState(true);
   const [productCategoryFilter, setProductCategoryFilter] = useState(null);
+  const [selectedParentCategory, setSelectedParentCategory] = useState(null); // для показа подкатегорий
   const [petForm, setPetForm] = useState({
     owner_id: '',
     name: '',
@@ -222,7 +222,7 @@ function App() {
   const [editPetForm, setEditPetForm] = useState({ name: '', species: 'dog', breed: '', weight: '', body_girth: '', back_length: '' });
   const [saleForm, setSaleForm] = useState({
     client_id: '',
-    payment_type: 'cash',
+    payment_type: 'card',
     items: [{ product_id: '', quantity: 1 }],
   });
 
@@ -283,8 +283,7 @@ function App() {
       items.push({ id: 'users', label: 'Сотрудники' });
       items.push({ id: 'audit', label: 'Аудит' });
     }
-    /* Поддержка доступна всем кроме администратора */
-    if (!isAdmin) items.push({ id: 'feedback', label: 'Поддержка' });
+    /* Поддержка убрана полностью */
     return items;
   }, [isAdmin, isClient, isSeller, token]);
 
@@ -314,13 +313,17 @@ function App() {
       products.filter((item) => {
         const q = productSearch.toLowerCase();
         const categoryName = (categoryNameById[item.category_id] || '').toLowerCase();
-        /* Поиск по названию товара и по категории */
-        const matchesSearch = item.name.toLowerCase().includes(q) || categoryName.includes(q);
-        const matchesCat =
-          productCategoryFilter === null || Number(item.category_id) === Number(productCategoryFilter);
+        const matchesSearch = item.name.toLowerCase().includes(q) || categoryName.includes(q) || (item.article || '').includes(q);
+        if (productCategoryFilter === null) return matchesSearch;
+        // Включаем товары из выбранной категории и всех её подкатегорий
+        const subIds = new Set(
+          categories.filter((c) => c.parent_id === productCategoryFilter).map((c) => c.id)
+        );
+        subIds.add(productCategoryFilter);
+        const matchesCat = subIds.has(Number(item.category_id));
         return matchesSearch && matchesCat;
       }),
-    [products, productSearch, productCategoryFilter, categoryNameById]
+    [products, productSearch, productCategoryFilter, categoryNameById, categories]
   );
 
   async function api(path, options = {}) {
@@ -473,6 +476,23 @@ function App() {
     setActiveSection('products');
   };
 
+  /* Генерация уникального 7-значного артикула */
+  const generateArticle = () => {
+    const existing = new Set(products.map((p) => p.article).filter(Boolean));
+    let article;
+    do {
+      article = String(Math.floor(1000000 + Math.random() * 9000000));
+    } while (existing.has(article));
+    return article;
+  };
+
+  /* Валидация телефона */
+  const validatePhone = (phone) => {
+    if (!phone) return true; // необязательное поле
+    const digits = phone.replace(/\D/g, '');
+    return digits.length >= 10 && digits.length <= 12;
+  };
+
   const saveProduct = async (e) => {
     e.preventDefault();
     setError('');
@@ -526,10 +546,12 @@ function App() {
     setError('');
     try {
       const { imageFile, ...formData } = productForm;
+      const article = formData.article || generateArticle();
       const created = await api('/products/', {
         method: 'POST',
         body: JSON.stringify({
           ...formData,
+          article,
           category_id: Number(formData.category_id),
           price: Number(formData.price),
           quantity: Number(formData.quantity || 0),
@@ -777,9 +799,13 @@ function App() {
     try {
       const items = saleForm.items
         .filter((i) => i.product_id)
-        .map((i) => ({ product_id: Number(i.product_id), quantity: Number(i.quantity) }));
+        .map((i) => {
+          const id = i._resolved_id || products.find((p) => p.article === i.product_id)?.id || Number(i.product_id);
+          return { product_id: id, quantity: Number(i.quantity) };
+        });
 
       if (items.length === 0) { setError('Добавьте хотя бы один товар'); return; }
+      if (items.some((i) => !i.product_id)) { setError('Один или несколько артикулов не найдены'); return; }
 
       await api('/sales/', {
         method: 'POST',
@@ -790,7 +816,7 @@ function App() {
         }),
       });
       setMessage('Продажа создана');
-      setSaleForm({ client_id: '', payment_type: 'cash', items: [{ product_id: '', quantity: 1 }] });
+      setSaleForm({ client_id: '', payment_type: 'card', items: [{ product_id: '', quantity: 1 }] });
       loadSectionData('sales');
     } catch (e2) {
       setError(e2.message);
@@ -800,6 +826,10 @@ function App() {
   /* Создать сотрудника — только роль seller */
   const saveUser = async (e) => {
     e.preventDefault();
+    if (userForm.phone && !validatePhone(userForm.phone)) {
+      setError('Номер телефона должен содержать от 10 до 12 цифр');
+      return;
+    }
     try {
       await api('/users/', { method: 'POST', body: JSON.stringify(userForm) });
       setMessage('Сотрудник создан');
@@ -813,6 +843,10 @@ function App() {
   /* Создать клиента */
   const saveClient = async (e) => {
     e.preventDefault();
+    if (clientForm.phone && !validatePhone(clientForm.phone)) {
+      setError('Номер телефона должен содержать от 10 до 12 цифр');
+      return;
+    }
     try {
       await api('/clients/', {
         method: 'POST',
@@ -1184,23 +1218,64 @@ function App() {
           <section className="card section-card">
             {/* Фильтр по категориям */}
             <div className="category-filter">
-              <button
-                type="button"
-                className={productCategoryFilter === null ? 'category-chip active' : 'category-chip'}
-                onClick={() => setProductCategoryFilter(null)}
-              >
-                Все
-              </button>
-              {categories.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  className={productCategoryFilter === c.id ? 'category-chip active' : 'category-chip'}
-                  onClick={() => setProductCategoryFilter(c.id)}
-                >
-                  {c.name}
-                </button>
-              ))}
+              {selectedParentCategory ? (
+                <>
+                  <button
+                    type="button"
+                    className="category-chip"
+                    onClick={() => { setSelectedParentCategory(null); setProductCategoryFilter(null); }}
+                  >
+                    ← Назад
+                  </button>
+                  <button
+                    type="button"
+                    className={productCategoryFilter === selectedParentCategory ? 'category-chip active' : 'category-chip'}
+                    onClick={() => setProductCategoryFilter(selectedParentCategory)}
+                  >
+                    Все в категории
+                  </button>
+                  {categories.filter((c) => c.parent_id === selectedParentCategory).map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      className={productCategoryFilter === c.id ? 'category-chip active' : 'category-chip'}
+                      onClick={() => setProductCategoryFilter(c.id)}
+                    >
+                      {c.name}
+                    </button>
+                  ))}
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className={productCategoryFilter === null ? 'category-chip active' : 'category-chip'}
+                    onClick={() => setProductCategoryFilter(null)}
+                  >
+                    Все
+                  </button>
+                  {categories.filter((c) => c.parent_id == null).map((c) => {
+                    const hasChildren = categories.some((s) => s.parent_id === c.id);
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        className={productCategoryFilter === c.id ? 'category-chip active' : 'category-chip'}
+                        onClick={() => {
+                          if (hasChildren) {
+                            setSelectedParentCategory(c.id);
+                            setProductCategoryFilter(c.id);
+                          } else {
+                            setProductCategoryFilter(c.id);
+                          }
+                        }}
+                      >
+                        {c.name}{hasChildren ? ' ›' : ''}
+                      </button>
+                    );
+                  })}
+                </>
+              )}
             </div>
 
             {/*---------ДОБАВЛЕНИЕ ТОВАРА ------------- */}
@@ -1365,6 +1440,7 @@ function App() {
             <table className="data-table">
               <thead>
                 <tr>
+                  {isAdmin && <th>ID клиента</th>}
                   <th>Кличка</th>
                   <th>Вид</th>
                   <th>Порода</th>
@@ -1375,6 +1451,7 @@ function App() {
               <tbody>
                 {pets.map((p) => (
                   <tr key={p.id}>
+                    {isAdmin && <td className="muted">{p.owner_id}</td>}
                     <td>{p.name}</td>
                     <td>{speciesLabel(p.species)}</td>
                     <td>{p.breed || '—'}</td>
@@ -1410,7 +1487,6 @@ function App() {
                   onChange={(e) => setSaleForm({ ...saleForm, payment_type: e.target.value })}
                   style={{ gridColumn: '1 / -1' }}
                 >
-                  <option value="cash">Наличные</option>
                   <option value="card">Банковская карта</option>
                 </select>
 
@@ -1418,18 +1494,19 @@ function App() {
                   {saleForm.items.map((item, idx) => (
                     <div key={idx} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                       <input
-                        placeholder="ID товара"
-                        type="number"
-                        min="1"
+                        placeholder="Артикул товара (7 цифр)"
                         value={item.product_id}
                         onChange={(e) => {
+                          const val = e.target.value;
+                          const found = products.find((p) => p.article === val);
                           const updated = [...saleForm.items];
-                          updated[idx] = { ...updated[idx], product_id: e.target.value };
+                          updated[idx] = { ...updated[idx], product_id: val, _resolved_id: found ? found.id : null, _name: found ? found.name : null };
                           setSaleForm({ ...saleForm, items: updated });
                         }}
                         style={{ flex: 2 }}
                         required
                       />
+                      {item._name && <span style={{ fontSize: 12, color: '#496580' }}>{item._name}</span>}
                       <input
                         placeholder="Количество"
                         type="number"
