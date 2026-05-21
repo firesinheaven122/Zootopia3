@@ -1,11 +1,20 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field, model_validator
 from typing import Optional
 
 class RegisterSchema(BaseModel):
     email: EmailStr
     password: str
-    full_name: str
+    full_name: Optional[str] = None
+    name: Optional[str] = None  # алиас для совместимости с тестами
     phone: Optional[str] = None
+
+    @model_validator(mode='after')
+    def resolve_name(self):
+        if not self.full_name and self.name:
+            self.full_name = self.name
+        if not self.full_name:
+            raise ValueError('Необходимо указать full_name или name')
+        return self
 
 class LoginSchema(BaseModel):
     email: EmailStr
