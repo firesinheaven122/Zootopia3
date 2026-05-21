@@ -425,6 +425,16 @@ function App() {
     e.preventDefault();
     setError('');
     setMessage('');
+    if (authMode === 'register') {
+      if (!authForm.password || authForm.password.trim().length === 0) {
+        setError('Пароль не может быть пустым');
+        return;
+      }
+      if (authForm.password.length < 6) {
+        setError('Пароль должен содержать минимум 6 символов');
+        return;
+      }
+    }
     try {
       if (authMode === 'login') {
         const data = await api('/auth/login', {

@@ -1,12 +1,21 @@
-from pydantic import BaseModel, EmailStr, Field, model_validator
+from pydantic import BaseModel, EmailStr, Field, model_validator, field_validator
 from typing import Optional
 
 class RegisterSchema(BaseModel):
     email: EmailStr
     password: str
     full_name: Optional[str] = None
-    name: Optional[str] = None  # алиас для совместимости с тестами
+    name: Optional[str] = None
     phone: Optional[str] = None
+
+    @field_validator('password')
+    @classmethod
+    def validate_password(cls, v):
+        if not v or len(v.strip()) == 0:
+            raise ValueError('Пароль не может быть пустым')
+        if len(v) < 6:
+            raise ValueError('Пароль должен содержать минимум 6 символов')
+        return v
 
     @model_validator(mode='after')
     def resolve_name(self):
