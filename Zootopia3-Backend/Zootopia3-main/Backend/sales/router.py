@@ -38,7 +38,7 @@ def get_sale(
 def create_sale(
     data: SaleCreateSchema,
     db: Session = Depends(get_db),
-    current_user=Depends(require_seller)
+    current_user=Depends(get_current_user)
 ):
     total = 0
     sale_items = []
@@ -61,9 +61,14 @@ def create_sale(
             "subtotal": subtotal
         })
 
+    # Клиент всегда покупает сам себе; продавец/админ может указать client_id
+    is_staff = current_user.role.value in ("admin", "seller")
+    client_id = data.client_id if is_staff else current_user.id
+    seller_id = current_user.id if is_staff else current_user.id
+
     sale = Sale(
-        seller_id=current_user.id,
-        client_id=data.client_id,
+        seller_id=seller_id,
+        client_id=client_id,
         total_amount=total,
         payment_type=data.payment_type
     )
@@ -91,7 +96,7 @@ def create_sale(
         entity="sales",
         entity_id=sale.id,
         log_type="operator",
-        details={"total": float(total), "items": len(sale_items), "client_id": data.client_id}
+        details={"total": float(total), "items": len(sale_items), "client_id": client_id}
     )
 
     return sale

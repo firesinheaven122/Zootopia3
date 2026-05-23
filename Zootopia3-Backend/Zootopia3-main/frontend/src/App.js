@@ -139,9 +139,17 @@ function App() {
   const [showAuthModal, setShowAuthModal] = useState(false);
 
   /* Корзина — хранится в состоянии как массив {product, quantity} */
-  const [cart, setCart] = useState([]);
   const [showCart, setShowCart] = useState(false);
-  const [cartPayment, setCartPayment] = useState('cash');
+  const [cartPayment, setCartPayment] = useState('card');
+  const [cartAddress, setCartAddress] = useState('');
+  const [showOrderSuccess, setShowOrderSuccess] = useState(false);
+  const [cartError, setCartError] = useState('');
+  const [cart, setCart] = useState(() => {
+    try {
+      const saved = localStorage.getItem('cart');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
 
   const [authForm, setAuthForm] = useState({
     email: '',
@@ -392,8 +400,14 @@ function App() {
     }
   }
 
+  /* Сохраняем корзину в localStorage при каждом изменении */
   useEffect(() => {
-    if (!token) return;
+    try {
+      localStorage.setItem('cart', JSON.stringify(cart));
+    } catch { /* игнорируем */ }
+  }, [cart]);
+
+  useEffect(() => {
     refreshMe().catch((e) => {
       setError(e.message);
       handleLogout();
@@ -980,7 +994,15 @@ function App() {
     setCart((prev) => {
       const existing = prev.find((i) => i.product.id === product.id);
       if (existing) {
+        if (existing.quantity >= product.quantity) {
+          setCartError(`Максимальное количество «${product.name}» на складе: ${product.quantity} шт.`);
+          return prev;
+        }
         return prev.map((i) => i.product.id === product.id ? { ...i, quantity: i.quantity + 1 } : i);
+      }
+      if (product.quantity < 1) {
+        setCartError(`Товар «${product.name}» закончился на складе`);
+        return prev;
       }
       return [...prev, { product, quantity: 1 }];
     });
@@ -994,13 +1016,21 @@ function App() {
   /* Изменить количество в корзине */
   const changeCartQty = (productId, qty) => {
     if (qty < 1) { removeFromCart(productId); return; }
-    setCart((prev) => prev.map((i) => i.product.id === productId ? { ...i, quantity: qty } : i));
+    setCart((prev) => prev.map((i) => {
+      if (i.product.id !== productId) return i;
+      if (qty > i.product.quantity) {
+        setCartError(`Максимальное количество «${i.product.name}» на складе: ${i.product.quantity} шт.`);
+        return i;
+      }
+      return { ...i, quantity: qty };
+    }));
   };
 
   /* Оформить заказ из корзины */
   const checkoutCart = async () => {
     if (cart.length === 0) return;
-    setError('');
+    if (!cartAddress.trim()) { setCartError('Укажите адрес доставки'); return; }
+    setCartError('');
     try {
       const items = cart.map((i) => ({ product_id: i.product.id, quantity: i.quantity }));
       await api('/sales/', {
@@ -1009,9 +1039,10 @@ function App() {
       });
       setCart([]);
       setShowCart(false);
-      setMessage('Заказ успешно оформлен!');
+      setCartAddress('');
+      setShowOrderSuccess(true);
     } catch (e) {
-      setError(e.message);
+      setCartError(e.message);
     }
   };
 
@@ -1025,10 +1056,19 @@ function App() {
     setActiveSection('products');
   };
 
+  /* Закрывает модалку только при клике на overlay, но не при выделении текста */
+  const overlayProps = (onClose) => ({
+    onMouseDown: (e) => { if (e.target === e.currentTarget) e.currentTarget._sc = true; },
+    onMouseUp: (e) => {
+      if (e.currentTarget._sc && e.target === e.currentTarget) onClose();
+      e.currentTarget._sc = false;
+    },
+  });
+
   /* --------- МОДАЛЬНОЕ ОКНО АВТОРИЗАЦИИ ------------- */
 
   const authModalContent = (
-    <div className="modal-overlay" onClick={() => setShowAuthModal(false)}>
+    <div className="modal-overlay" {...overlayProps(() => setShowAuthModal(false))}>
       <div className="modal-card auth-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-top">
           <h3>{authMode === 'login' ? 'Вход в систему' : 'Регистрация'}</h3>
@@ -1145,7 +1185,7 @@ function App() {
                 >
                   Все товары
                 </button>
-                {categories.map((c) => (
+                {categories.filter((c) => c.parent_id == null).map((c) => (
                   <button
                     key={c.id}
                     type="button"
@@ -1921,12 +1961,15 @@ function App() {
 
       {/* Модальное окно корзины */}
       {showCart && (
-        <div className="modal-overlay" onClick={() => setShowCart(false)}>
+        <div className="modal-overlay" {...overlayProps(() => { setShowCart(false); setCartError(''); })}>
           <div className="modal-card cart-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-top">
               <h3>Корзина</h3>
-              <button className="modal-close-btn" onClick={() => setShowCart(false)}>X</button>
+              <button className="modal-close-btn" onClick={() => { setShowCart(false); setCartError(''); }}>X</button>
             </div>
+            {cartError && (
+              <div className="cart-error">{cartError}</div>
+            )}
             {cart.length === 0 ? (
               <p className="muted cart-empty">Корзина пуста</p>
             ) : (
@@ -1959,10 +2002,20 @@ function App() {
                     <span className="cart-total-sum">{formatMoney(cartTotal)}</span>
                   </div>
                   <div className="cart-payment">
+                    <label className="feedback-label">Адрес доставки *</label>
+                    <input
+                      className="cart-address-input"
+                      placeholder="Город, улица, дом, квартира"
+                      value={cartAddress}
+                      onChange={(e) => setCartAddress(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="cart-payment">
                     <label className="feedback-label">Способ оплаты</label>
-                    <select value={cartPayment} onChange={(e) => setCartPayment(e.target.value)}>
-                      <option value="cash">Наличные</option>
-                      <option value="card">Банковская карта</option>
+                    <select className="cart-select" value={cartPayment} onChange={(e) => setCartPayment(e.target.value)}>
+                      <option value="card">💳 Банковская карта</option>
+                      <option value="cash">💵 Наличные при получении</option>
                     </select>
                   </div>
                   <button type="button" className="primary cart-checkout-btn" onClick={checkoutCart}>
@@ -1977,7 +2030,7 @@ function App() {
 
       {/* Модальное окно подробностей товара */}
       {selectedProduct && (
-        <div className="modal-overlay" onClick={closeProductDetails}>
+        <div className="modal-overlay" {...overlayProps(closeProductDetails)}>
           <div className="modal-card product-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-top">
               <h3 className="product-modal-title">{selectedProduct.name}</h3>
@@ -2010,6 +2063,20 @@ function App() {
                 {selectedProduct.description && (
                   <p className="product-modal-desc">{selectedProduct.description}</p>
                 )}
+                <div className="product-modal-actions">
+                  <button
+                    className="primary"
+                    onClick={() => { addToCart(selectedProduct); closeProductDetails(); setShowCart(true); }}
+                  >
+                    Купить
+                  </button>
+                  <button
+                    className="cart-add-btn"
+                    onClick={() => addToCart(selectedProduct)}
+                  >
+                    В корзину
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -2018,7 +2085,7 @@ function App() {
 
       {/* Модальное окно редактирования товара — только для администратора */}
       {isEditModalOpen && (
-        <div className="modal-overlay" onClick={closeEditModal}>
+        <div className="modal-overlay" {...overlayProps(closeEditModal)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
             <div className="modal-top">
               <h3>Редактировать товар</h3>
@@ -2071,7 +2138,7 @@ function App() {
       {/* Модальное окно редактирования клиента */}
 
       {isEditClientOpen && (
-        <div className="modal-overlay" onClick={closeEditClient}>
+        <div className="modal-overlay" {...overlayProps(closeEditClient)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
             <div className="modal-top">
               <h3>Редактировать клиента</h3>
@@ -2087,9 +2154,23 @@ function App() {
           </div>
         </div>
       )}
+      {/* Модальное окно успешного заказа */}
+      {showOrderSuccess && (
+        <div className="modal-overlay" {...overlayProps(() => setShowOrderSuccess(false))}>
+          <div className="modal-card order-success-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="order-success-icon">✓</div>
+            <h3 className="order-success-title">Заказ оформлен!</h3>
+            <p className="order-success-text">
+              Ваш заказ успешно принят. Мы свяжемся с вами для подтверждения доставки.
+            </p>
+            <button className="primary" onClick={() => setShowOrderSuccess(false)}>Отлично!</button>
+          </div>
+        </div>
+      )}
+
       {/* Модальное окно редактирования питомца */}
       {editingPet && (
-        <div className="modal-overlay" onClick={closeEditPet}>
+        <div className="modal-overlay" {...overlayProps(closeEditPet)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
             <div className="modal-top">
               <h3>Редактировать питомца</h3>
@@ -2123,7 +2204,7 @@ function App() {
 
       {/* Модальное окно редактирования категории */}
       {editingCategory && (
-        <div className="modal-overlay" onClick={closeEditCategory}>
+        <div className="modal-overlay" {...overlayProps(closeEditCategory)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
             <div className="modal-top">
               <h3>Редактировать категорию</h3>
