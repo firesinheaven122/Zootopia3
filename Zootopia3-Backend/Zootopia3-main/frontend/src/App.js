@@ -1299,13 +1299,9 @@ function App() {
                 </select>
                 <input placeholder="Название" value={productForm.name}
                   onChange={(e) => setProductForm({ ...productForm, name: e.target.value })} required />
-                <input placeholder="Артикул" value={productForm.article}
-                  onChange={(e) => setProductForm({ ...productForm, article: e.target.value })} />
-                {/* Цена не может быть ниже 0.01 */}
                 <input placeholder="Цена" type="number" step="0.01" min="0.01"
                   value={productForm.price}
                   onChange={(e) => setProductForm({ ...productForm, price: e.target.value })} required />
-                {/* Количество не может быть отрицательным */}
                 <input placeholder="Кол-во" type="number" min="0"
                   value={productForm.quantity}
                   onChange={(e) => setProductForm({ ...productForm, quantity: e.target.value })} />
@@ -1640,7 +1636,7 @@ function App() {
           </section>
         )}
 
-        {/*---------СОТРУДНИКИ (переименовано из Пользователи) ------------- */}
+        {/*---------СОТРУДНИКИ ------------- */}
 
         {activeSection === 'users' && isAdmin && (
           <section className="card section-card">
