@@ -4,7 +4,7 @@ ml_import_error = None
 try:
     from surprise import Dataset, Reader, SVD
     from surprise.model_selection import train_test_split
-except ModuleNotFoundError as exc:
+except (ModuleNotFoundError, ImportError) as exc:
     ml_import_error = exc
 
 def train_model(data: list):
@@ -17,7 +17,7 @@ def train_model(data: list):
 
     try:
         import pandas as pd
-    except ModuleNotFoundError:
+    except (ModuleNotFoundError, ImportError):
         return False
 
     df = pd.DataFrame(data)
@@ -64,7 +64,6 @@ def adjust_score_by_pet(score: float, product_id: int, pet) -> float:
         elif weight < 5:
             score += 0.3
 
-    # Корректировка по обхвату тела
     if pet.body_girth:
         girth = float(pet.body_girth)
         if girth > 60:
@@ -72,7 +71,6 @@ def adjust_score_by_pet(score: float, product_id: int, pet) -> float:
         elif girth < 30:
             score += 0.2
 
-    # Корректировка по длине спины
     if pet.back_length:
         length = float(pet.back_length)
         if length > 50:

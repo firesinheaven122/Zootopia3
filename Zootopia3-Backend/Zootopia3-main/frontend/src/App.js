@@ -196,6 +196,7 @@ function App() {
   const [isEditClientOpen, setIsEditClientOpen] = useState(false);
   const [editingClient, setEditingClient] = useState(null);
   const [editClientForm, setEditClientForm] = useState({
+    email: '',
     full_name: '',
     phone: '',
   });
@@ -382,7 +383,9 @@ function App() {
         setProducts(await api('/products/'));
         setSales(await api(isSeller ? '/sales/' : '/sales/my'));
       }
-      if (section === 'clients') setClients(await api('/clients/'));
+      if (section === 'clients') {
+        try { setClients(await api('/clients/')); } catch { setClients([]); }
+      }
       if (section === 'users') setUsers(await api('/users/'));
       if (section === 'recommendations') {
         setProducts(await api('/products/'));
@@ -511,10 +514,12 @@ function App() {
     e.preventDefault();
     setError('');
     try {
+      const article = productForm.article || generateArticle();
       await api('/products/', {
         method: 'POST',
         body: JSON.stringify({
           ...productForm,
+          article,
           category_id: Number(productForm.category_id),
           price: Number(productForm.price),
           quantity: Number(productForm.quantity || 0),
@@ -877,14 +882,14 @@ function App() {
   /* Открыть форму редактирования клиента */
   const openEditClient = (client) => {
     setEditingClient(client);
-    setEditClientForm({ full_name: client.full_name, phone: client.phone || '' });
+    setEditClientForm({ email: client.email, full_name: client.full_name, phone: client.phone || '' });
     setIsEditClientOpen(true);
   };
 
   const closeEditClient = () => {
     setIsEditClientOpen(false);
     setEditingClient(null);
-    setEditClientForm({ full_name: '', phone: '' });
+    setEditClientForm({ email: '', full_name: '', phone: '' });
   };
 
   /* Сохранить изменения клиента */
@@ -1258,64 +1263,23 @@ function App() {
           <section className="card section-card">
             {/* Фильтр по категориям */}
             <div className="category-filter">
-              {selectedParentCategory ? (
-                <>
-                  <button
-                    type="button"
-                    className="category-chip"
-                    onClick={() => { setSelectedParentCategory(null); setProductCategoryFilter(null); }}
-                  >
-                    ← Назад
-                  </button>
-                  <button
-                    type="button"
-                    className={productCategoryFilter === selectedParentCategory ? 'category-chip active' : 'category-chip'}
-                    onClick={() => setProductCategoryFilter(selectedParentCategory)}
-                  >
-                    Все в категории
-                  </button>
-                  {categories.filter((c) => c.parent_id === selectedParentCategory).map((c) => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      className={productCategoryFilter === c.id ? 'category-chip active' : 'category-chip'}
-                      onClick={() => setProductCategoryFilter(c.id)}
-                    >
-                      {c.name}
-                    </button>
-                  ))}
-                </>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    className={productCategoryFilter === null ? 'category-chip active' : 'category-chip'}
-                    onClick={() => setProductCategoryFilter(null)}
-                  >
-                    Все
-                  </button>
-                  {categories.filter((c) => c.parent_id == null).map((c) => {
-                    const hasChildren = categories.some((s) => s.parent_id === c.id);
-                    return (
-                      <button
-                        key={c.id}
-                        type="button"
-                        className={productCategoryFilter === c.id ? 'category-chip active' : 'category-chip'}
-                        onClick={() => {
-                          if (hasChildren) {
-                            setSelectedParentCategory(c.id);
-                            setProductCategoryFilter(c.id);
-                          } else {
-                            setProductCategoryFilter(c.id);
-                          }
-                        }}
-                      >
-                        {c.name}{hasChildren ? ' ›' : ''}
-                      </button>
-                    );
-                  })}
-                </>
-              )}
+              <button
+                type="button"
+                className={productCategoryFilter === null ? 'category-chip active' : 'category-chip'}
+                onClick={() => { setProductCategoryFilter(null); setSelectedParentCategory(null); }}
+              >
+                Все
+              </button>
+              {categories.filter((c) => c.parent_id == null).map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  className={productCategoryFilter === c.id ? 'category-chip active' : 'category-chip'}
+                  onClick={() => { setProductCategoryFilter(c.id); setSelectedParentCategory(null); }}
+                >
+                  {c.name}
+                </button>
+              ))}
             </div>
 
             {/*---------ДОБАВЛЕНИЕ ТОВАРА ------------- */}
@@ -1329,7 +1293,7 @@ function App() {
                   required
                 >
                   <option value="">Выберите категорию</option>
-                  {categories.map((c) => (
+                  {categories.filter((c) => c.parent_id == null).map((c) => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
                 </select>
@@ -1412,19 +1376,10 @@ function App() {
                 onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })}
                 required
               />
-              <select
-                value={categoryForm.parent_id}
-                onChange={(e) => setCategoryForm({ ...categoryForm, parent_id: e.target.value })}
-              >
-                <option value="">Без родительской категории</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
               <button className="primary" type="submit">Добавить</button>
             </form>
             <ul className="category-admin-list">
-              {categories.map((c) => (
+              {categories.filter((c) => c.parent_id == null).map((c) => (
                 <li key={c.id} className="category-admin-row">
                   <span className="category-admin-name">{c.name}</span>
                   {c.parent_id != null && (
@@ -2145,6 +2100,8 @@ function App() {
               <button onClick={closeEditClient}>X</button>
             </div>
             <form className="form-grid" onSubmit={updateClient}>
+              <input placeholder="Email" type="email" value={editClientForm.email}
+                onChange={(e) => setEditClientForm({ ...editClientForm, email: e.target.value })} required />
               <input placeholder="Имя Фамилия" value={editClientForm.full_name}
                 onChange={(e) => setEditClientForm({ ...editClientForm, full_name: e.target.value })} required />
               <input placeholder="Телефон" value={editClientForm.phone}
@@ -2217,17 +2174,6 @@ function App() {
                 onChange={(e) => setEditCategoryForm({ ...editCategoryForm, name: e.target.value })}
                 required
               />
-              <select
-                value={editCategoryForm.parent_id}
-                onChange={(e) => setEditCategoryForm({ ...editCategoryForm, parent_id: e.target.value })}
-              >
-                <option value="">Без родительской категории</option>
-                {categories
-                  .filter((c) => c.id !== editingCategory.id)
-                  .map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-              </select>
               <button type="submit" className="primary">Сохранить</button>
             </form>
           </div>

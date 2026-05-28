@@ -8,6 +8,7 @@ class ClientCreateSchema(BaseModel):
     phone: Optional[str] = None
 
 class ClientUpdateSchema(BaseModel):
+    email: Optional[EmailStr] = None
     full_name: Optional[str] = None
     phone: Optional[str] = None
     is_active: Optional[bool] = None
