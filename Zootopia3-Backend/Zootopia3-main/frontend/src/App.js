@@ -43,7 +43,7 @@ function Header({ user, onLoginClick, onLogout, productSearch, setProductSearch,
       <div className="header-container">
         <div className="header-content">
           <div className="header-logo">
-            <h1 className="header-logo-text">Зоомагазин</h1>
+            <h1 className="header-logo-text">Зоотопия</h1>
           </div>
           <div className="header-search-wrapper">
             <input
@@ -115,7 +115,7 @@ function Footer({ setActiveSection }) {
           </div>
         </div>
         <div className="footer-copyright">
-          <p>&copy; 2026 Зоомагазин. Все права защищены.</p>
+          <p>&copy; 2026 Зоотопия. Все права защищены.</p>
         </div>
       </div>
     </footer>
@@ -160,7 +160,9 @@ function App() {
   const [activeSection, setActiveSection] = useState('products');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [authMessage, setAuthMessage] = useState('');
   const [error, setError] = useState('');
+  const [editProductError, setEditProductError] = useState('');
 
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -171,6 +173,7 @@ function App() {
   const [recommendations, setRecommendations] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
   const [feedbacks, setFeedbacks] = useState([]);
+  const [clientSearch, setClientSearch] = useState('');
   const [feedbackForm, setFeedbackForm] = useState({
     name: '', email: '', subject: '', message: ''
   });
@@ -306,7 +309,7 @@ function App() {
     /* Переименовано */
     users: 'Сотрудники',
     audit: 'Журнал действий',
-    feedback: 'Поддержка и обратная связь',
+    // feedback убран
   };
 
   const categoryNameById = useMemo(
@@ -358,7 +361,6 @@ function App() {
   }
 
   async function loadSectionData(section) {
-    /* Товары и категории загружаются без токена */
     if (section === 'products') {
       setLoading(true);
       setError('');
@@ -392,7 +394,7 @@ function App() {
         setRecommendations(await api('/recommendations/my'));
       }
       if (section === 'audit') setAuditLogs(await api('/audit/all'));
-      if (section === 'feedback' && isAdmin) {
+      if (false && section === 'feedback' && isAdmin) {
         const fb = await api('/feedback/');
         setFeedbacks(Array.isArray(fb) ? fb : []);
       }
@@ -403,11 +405,11 @@ function App() {
     }
   }
 
-  /* Сохраняем корзину в localStorage при каждом изменении */
+
   useEffect(() => {
     try {
       localStorage.setItem('cart', JSON.stringify(cart));
-    } catch { /* игнорируем */ }
+    } catch { }
   }, [cart]);
 
   useEffect(() => {
@@ -415,28 +417,24 @@ function App() {
       setError(e.message);
       handleLogout();
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
-  /* Загружаем категории для сайдбара без авторизации */
+  /* Загружаем категории для сайдбара */
   useEffect(() => {
     (async () => {
       try {
         const cats = await api('/categories/');
         setCategories(cats);
       } catch (e) {
-        /* sidebar categories optional */
       }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, []);
 
   useEffect(() => {
     loadSectionData(activeSection);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSection, token, user?.role]);
 
-  /* Переход к разделу — гость попадает в раздел и видит блок авторизации */
   const goToSection = (sectionId) => {
     setActiveSection(sectionId);
   };
@@ -464,13 +462,13 @@ function App() {
         localStorage.setItem('token', data.access_token);
         setToken(data.access_token);
         setShowAuthModal(false);
-        setMessage('Вход выполнен');
+        setAuthMessage('Вход выполнен');
       } else {
         await api('/auth/register', {
           method: 'POST',
           body: JSON.stringify(authForm),
         });
-        setMessage('Регистрация успешна, теперь войдите');
+        setAuthMessage('Регистрация успешна, теперь войдите');
         setAuthMode('login');
       }
     } catch (e2) {
@@ -590,7 +588,17 @@ function App() {
   /* Обновить товар и загрузить новую картинку если выбрана */
   const updateProductWithImage = async (e) => {
     e.preventDefault();
-    setError('');
+    setEditProductError('');
+    // Проверяем уникальность артикула (исключая текущий товар)
+    if (editForm.article) {
+      const duplicate = products.find(
+        (p) => p.article === editForm.article && p.id !== editingProduct.id
+      );
+      if (duplicate) {
+        setEditProductError(`Товар с артикулом "${editForm.article}" уже существует: "${duplicate.name}"`);
+        return;
+      }
+    }
     try {
       const { imageFile, ...formData } = editForm;
       await api(`/products/${editingProduct.id}`, {
@@ -609,7 +617,7 @@ function App() {
       closeEditModal();
       loadSectionData('products');
     } catch (e2) {
-      setError(e2.message);
+      setEditProductError(e2.message);
     }
   };
 
@@ -645,6 +653,7 @@ function App() {
   const closeEditModal = () => {
     setIsEditModalOpen(false);
     setEditingProduct(null);
+    setEditProductError('');
     setEditForm({
       name: '',
       article: '',
@@ -660,7 +669,17 @@ function App() {
   /* Сохранить изменения товара */
   const updateProduct = async (e) => {
     e.preventDefault();
-    setError('');
+    setEditProductError('');
+    // Проверяем уникальность артикула (исключая текущий товар)
+    if (editForm.article) {
+      const duplicate = products.find(
+        (p) => p.article === editForm.article && p.id !== editingProduct.id
+      );
+      if (duplicate) {
+        setEditProductError(`Товар с артикулом "${editForm.article}" уже существует: "${duplicate.name}"`);
+        return;
+      }
+    }
     try {
       await api(`/products/${editingProduct.id}`, {
         method: 'PUT',
@@ -675,7 +694,7 @@ function App() {
       closeEditModal();
       loadSectionData('products');
     } catch (e2) {
-      setError(e2.message);
+      setEditProductError(e2.message);
     }
   };
 
@@ -767,9 +786,16 @@ function App() {
 
   const openEditPet = (pet) => {
     setEditingPet(pet);
+    const speciesMap = {
+      'собака': 'dog', 'кошка': 'cat', 'птица': 'bird',
+      'рыба': 'fish', 'грызун': 'rodent', 'другое': 'other',
+      'dog': 'dog', 'cat': 'cat', 'bird': 'bird',
+      'fish': 'fish', 'rodent': 'rodent', 'other': 'other',
+    };
+    const speciesValue = speciesMap[(pet.species || '').toLowerCase()] || 'dog';
     setEditPetForm({
       name: pet.name,
-      species: pet.species || 'dog',
+      species: speciesValue,
       breed: pet.breed || '',
       weight: pet.weight || '',
       body_girth: pet.body_girth || '',
@@ -825,6 +851,20 @@ function App() {
 
       if (items.length === 0) { setError('Добавьте хотя бы один товар'); return; }
       if (items.some((i) => !i.product_id)) { setError('Один или несколько артикулов не найдены'); return; }
+
+      // Проверяем что клиент с таким ID существует
+      if (isSeller || isAdmin) {
+        if (!saleForm.client_id) { setError('Укажите ID клиента'); return; }
+        const clientExists = clients.find((c) => c.id === Number(saleForm.client_id));
+        if (!clientExists) {
+          setError(`Клиент с ID ${saleForm.client_id} не существует. Проверьте ID в разделе «Клиенты».`);
+          return;
+        }
+        if (!clientExists.is_active) {
+          setError(`Клиент с ID ${saleForm.client_id} заблокирован и не может совершать покупки.`);
+          return;
+        }
+      }
 
       await api('/sales/', {
         method: 'POST',
@@ -1117,7 +1157,7 @@ function App() {
           {authMode === 'login' ? 'Зарегистрироваться' : 'Уже есть аккаунт? Войти'}
         </button>
         {error && <p className="error-text auth-notice">{error}</p>}
-        {message && <p className="success-text auth-notice">{message}</p>}
+        {authMessage && <p className="success-text auth-notice">{authMessage}</p>}
       </div>
     </div>
   );
@@ -1466,7 +1506,7 @@ function App() {
               <form className="form-grid" onSubmit={createSale}>
                 <h3 className="section-form-title">Оформить продажу</h3>
                 <input
-                  placeholder="ID клиента (необязательно)"
+                  placeholder="ID клиента"
                   type="number"
                   min="1"
                   value={saleForm.client_id}
@@ -1600,6 +1640,12 @@ function App() {
               <button className="primary" type="submit">Создать</button>
             </form>
 
+            <input
+              placeholder="Поиск по имени или email клиента..."
+              value={clientSearch}
+              onChange={(e) => setClientSearch(e.target.value)}
+              style={{ marginBottom: 12, width: '100%', padding: '8px 12px', borderRadius: 8, border: '1.5px solid #C8DCF0', fontSize: 14 }}
+            />
             <table className="data-table">
               <thead>
                 <tr>
@@ -1611,7 +1657,10 @@ function App() {
                 </tr>
               </thead>
               <tbody>
-                {clients.map((c) => (
+                {clients.filter(c =>
+                  c.full_name?.toLowerCase().includes(clientSearch.toLowerCase()) ||
+                  c.email?.toLowerCase().includes(clientSearch.toLowerCase())
+                ).map((c) => (
                   <tr key={c.id}>
                     <td className="muted">{c.id}</td>
                     <td>{c.full_name}</td>
@@ -1753,131 +1802,7 @@ function App() {
 
         {/*---------ПОДДЕРЖКА И ОБРАТНАЯ СВЯЗЬ ------------- */}
 
-        {activeSection === 'feedback' && (
-          <section className="card section-card">
-            <div className="feedback-layout">
-
-              {/* Форма обратной связи — для всех пользователей */}
-              <div className="feedback-form-block">
-                <h3 className="section-title">Напишите нам</h3>
-                <p className="feedback-desc">
-                  Есть вопрос или предложение? Заполните форму и мы ответим вам в ближайшее время.
-                </p>
-                <form onSubmit={saveFeedback} className="feedback-form">
-                  <div className="feedback-row">
-                    <div>
-                      <label className="feedback-label">Ваше имя</label>
-                      <input
-                        placeholder="Иван Иванов"
-                        value={feedbackForm.name}
-                        onChange={(e) => setFeedbackForm({ ...feedbackForm, name: e.target.value })}
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="feedback-label">Email</label>
-                      <input
-                        type="email"
-                        placeholder="example@mail.ru"
-                        value={feedbackForm.email}
-                        onChange={(e) => setFeedbackForm({ ...feedbackForm, email: e.target.value })}
-                        required
-                      />
-                    </div>
-                  </div>
-                  <label className="feedback-label">Тема обращения</label>
-                  <select
-                    value={feedbackForm.subject}
-                    onChange={(e) => setFeedbackForm({ ...feedbackForm, subject: e.target.value })}
-                    required
-                  >
-                    <option value="">Выберите тему</option>
-                    <option value="Вопрос о товаре">Вопрос о товаре</option>
-                    <option value="Проблема с заказом">Проблема с заказом</option>
-                    <option value="Вопрос об оплате">Вопрос об оплате</option>
-                    <option value="Предложение">Предложение</option>
-                    <option value="Другое">Другое</option>
-                  </select>
-                  <label className="feedback-label">Сообщение</label>
-                  <textarea
-                    placeholder="Опишите ваш вопрос подробнее..."
-                    value={feedbackForm.message}
-                    onChange={(e) => setFeedbackForm({ ...feedbackForm, message: e.target.value })}
-                    rows={5}
-                    required
-                  />
-                  <button type="submit" className="primary feedback-submit">
-                    Отправить обращение
-                  </button>
-                </form>
-              </div>
-
-              {/* Контактная информация */}
-              <div className="feedback-contacts">
-                <h3 className="section-title">Контакты</h3>
-                <div className="feedback-contact-list">
-                  <div className="feedback-contact-card">
-                    <div className="feedback-contact-icon">&#9742;</div>
-                    <div>
-                      <p className="feedback-contact-title">Телефон</p>
-                      <a href="tel:+76665554433" className="feedback-contact-value">+7(666)555-44-33</a>
-                      <p className="feedback-contact-note">Пн-Пт с 9:00 до 18:00</p>
-                    </div>
-                  </div>
-                  <div className="feedback-contact-card">
-                    <div className="feedback-contact-icon">&#9993;</div>
-                    <div>
-                      <p className="feedback-contact-title">Email</p>
-                      <a href="mailto:zootopia@petshop.ru" className="feedback-contact-value">zootopia@petshop.ru</a>
-                      <p className="feedback-contact-note">Ответим в течение 24 часов</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Список обращений — только для администратора */}
-            {isAdmin && feedbacks.length > 0 && (
-              <div style={{marginTop: 32}}>
-                <h3 className="section-title">Входящие обращения</h3>
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Имя</th>
-                      <th>Email</th>
-                      <th>Тема</th>
-                      <th>Сообщение</th>
-                      <th>Статус</th>
-                      <th>Дата</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {feedbacks.map((fb) => (
-                      <tr key={fb.id}>
-                        <td>{fb.name}</td>
-                        <td>{fb.email}</td>
-                        <td>{fb.subject}</td>
-                        <td style={{maxWidth:200, wordBreak:'break-word'}}>{fb.message}</td>
-                        <td>
-                          <select
-                            value={fb.status}
-                            onChange={(e) => updateFeedbackStatus(fb.id, e.target.value)}
-                            className="feedback-status-select"
-                          >
-                            <option value="new">Новое</option>
-                            <option value="in_progress">В работе</option>
-                            <option value="resolved">Решено</option>
-                          </select>
-                        </td>
-                        <td>{new Date(fb.created_at).toLocaleString('ru-RU')}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
-        )}
+        {/* Раздел поддержки убран */}
 
         {/*---------АУДИТ ------------- */}
 
@@ -2080,6 +2005,7 @@ function App() {
               </div>
               <textarea placeholder="Описание" value={editForm.description}
                 onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} />
+              {editProductError && <p className="error-text">{editProductError}</p>}
               <button type="submit" className="primary">Сохранить изменения</button>
             </form>
           </div>
