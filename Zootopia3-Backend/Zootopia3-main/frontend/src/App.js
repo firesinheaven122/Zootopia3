@@ -10,6 +10,7 @@ const ROLE_LABELS = {
 
 const PAYMENT_LABELS = {
   card: 'Банковская карта',
+  cash: 'Наличные при получении',
 };
 
 const SPECIES_LABELS = {
@@ -55,8 +56,7 @@ function Header({ user, onLoginClick, onLogout, productSearch, setProductSearch,
             />
           </div>
           <div className="header-actions">
-            {/* Кнопка корзины — показывает количество товаров */}
-            <button type="button" className="cart-btn" onClick={onCartClick}>
+                <button type="button" className="cart-btn" onClick={onCartClick}>
               <span className="cart-icon">&#128722;</span>
               {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
             </button>
@@ -162,6 +162,10 @@ function App() {
   const [message, setMessage] = useState('');
   const [authMessage, setAuthMessage] = useState('');
   const [error, setError] = useState('');
+  const [trainLoading, setTrainLoading] = useState(false);
+  const [trainMessage, setTrainMessage] = useState('');
+  const [genLoading, setGenLoading] = useState(false);
+  const [genMessage, setGenMessage] = useState('');
   const [editProductError, setEditProductError] = useState('');
 
   const [products, setProducts] = useState([]);
@@ -295,7 +299,6 @@ function App() {
       items.push({ id: 'users', label: 'Сотрудники' });
       items.push({ id: 'audit', label: 'Аудит' });
     }
-    /* Поддержка убрана полностью */
     return items;
   }, [isAdmin, isClient, isSeller, token]);
 
@@ -309,7 +312,7 @@ function App() {
     /* Переименовано */
     users: 'Сотрудники',
     audit: 'Журнал действий',
-    // feedback убран
+    feedback: 'Поддержка и обратная связь',
   };
 
   const categoryNameById = useMemo(
@@ -394,7 +397,7 @@ function App() {
         setRecommendations(await api('/recommendations/my'));
       }
       if (section === 'audit') setAuditLogs(await api('/audit/all'));
-      if (false && section === 'feedback' && isAdmin) {
+      if (section === 'feedback' && isAdmin) {
         const fb = await api('/feedback/');
         setFeedbacks(Array.isArray(fb) ? fb : []);
       }
@@ -413,8 +416,8 @@ function App() {
   }, [cart]);
 
   useEffect(() => {
-    refreshMe().catch((e) => {
-      setError(e.message);
+    refreshMe().catch(() => {
+      // Токен устарел или невалиден — тихо разлогиниваем без показа ошибки
       handleLogout();
     });
   }, [token]);
@@ -443,6 +446,7 @@ function App() {
     e.preventDefault();
     setError('');
     setMessage('');
+    setAuthMessage('');
     if (authMode === 'register') {
       if (!authForm.password || authForm.password.trim().length === 0) {
         setError('Пароль не может быть пустым');
@@ -503,9 +507,38 @@ function App() {
 
   /* Валидация телефона */
   const validatePhone = (phone) => {
-    if (!phone) return true; // необязательное поле
+    if (!phone) return true;
     const digits = phone.replace(/\D/g, '');
     return digits.length >= 10 && digits.length <= 12;
+  };
+
+  const formatPhoneInput = (value, prevValue) => {
+    const digits = value.replace(/\D/g, '');
+    const prevDigits = (prevValue || '').replace(/\D/g, '');
+    // Если стёрли разделитель (длина строки уменьшилась, но цифр столько же) — убираем последнюю цифру
+    const isDeleting = prevValue !== undefined && value.length < prevValue.length;
+    const finalDigits = isDeleting && digits.length >= prevDigits.length
+      ? digits.slice(0, -1)
+      : digits;
+    if (finalDigits.length === 0) return '';
+    const d = finalDigits.startsWith('8') ? '7' + finalDigits.slice(1)
+      : finalDigits.startsWith('7') ? finalDigits : '7' + finalDigits;
+    let r = '+' + d[0];
+    if (d.length > 1) r += '(' + d.slice(1, 4);
+    if (d.length >= 4) r += ')' + d.slice(4, 7);
+    if (d.length >= 7) r += '-' + d.slice(7, 9);
+    if (d.length >= 9) r += '-' + d.slice(9, 11);
+    return r;
+  };
+
+  const phoneKeyDown = (e, currentValue, setter, formKey, form) => {
+    if (e.key === 'Backspace') {
+      const digits = currentValue.replace(/\D/g, '');
+      if (digits.length <= 1) {
+        e.preventDefault();
+        setter({ ...form, [formKey]: '' });
+      }
+    }
   };
 
   const saveProduct = async (e) => {
@@ -588,17 +621,7 @@ function App() {
   /* Обновить товар и загрузить новую картинку если выбрана */
   const updateProductWithImage = async (e) => {
     e.preventDefault();
-    setEditProductError('');
-    // Проверяем уникальность артикула (исключая текущий товар)
-    if (editForm.article) {
-      const duplicate = products.find(
-        (p) => p.article === editForm.article && p.id !== editingProduct.id
-      );
-      if (duplicate) {
-        setEditProductError(`Товар с артикулом "${editForm.article}" уже существует: "${duplicate.name}"`);
-        return;
-      }
-    }
+    setError('');
     try {
       const { imageFile, ...formData } = editForm;
       await api(`/products/${editingProduct.id}`, {
@@ -617,7 +640,7 @@ function App() {
       closeEditModal();
       loadSectionData('products');
     } catch (e2) {
-      setEditProductError(e2.message);
+      setError(e2.message);
     }
   };
 
@@ -653,7 +676,6 @@ function App() {
   const closeEditModal = () => {
     setIsEditModalOpen(false);
     setEditingProduct(null);
-    setEditProductError('');
     setEditForm({
       name: '',
       article: '',
@@ -669,17 +691,7 @@ function App() {
   /* Сохранить изменения товара */
   const updateProduct = async (e) => {
     e.preventDefault();
-    setEditProductError('');
-    // Проверяем уникальность артикула (исключая текущий товар)
-    if (editForm.article) {
-      const duplicate = products.find(
-        (p) => p.article === editForm.article && p.id !== editingProduct.id
-      );
-      if (duplicate) {
-        setEditProductError(`Товар с артикулом "${editForm.article}" уже существует: "${duplicate.name}"`);
-        return;
-      }
-    }
+    setError('');
     try {
       await api(`/products/${editingProduct.id}`, {
         method: 'PUT',
@@ -694,7 +706,7 @@ function App() {
       closeEditModal();
       loadSectionData('products');
     } catch (e2) {
-      setEditProductError(e2.message);
+      setError(e2.message);
     }
   };
 
@@ -786,16 +798,9 @@ function App() {
 
   const openEditPet = (pet) => {
     setEditingPet(pet);
-    const speciesMap = {
-      'собака': 'dog', 'кошка': 'cat', 'птица': 'bird',
-      'рыба': 'fish', 'грызун': 'rodent', 'другое': 'other',
-      'dog': 'dog', 'cat': 'cat', 'bird': 'bird',
-      'fish': 'fish', 'rodent': 'rodent', 'other': 'other',
-    };
-    const speciesValue = speciesMap[(pet.species || '').toLowerCase()] || 'dog';
     setEditPetForm({
       name: pet.name,
-      species: speciesValue,
+      species: pet.species || 'dog',
       breed: pet.breed || '',
       weight: pet.weight || '',
       body_girth: pet.body_girth || '',
@@ -851,20 +856,6 @@ function App() {
 
       if (items.length === 0) { setError('Добавьте хотя бы один товар'); return; }
       if (items.some((i) => !i.product_id)) { setError('Один или несколько артикулов не найдены'); return; }
-
-      // Проверяем что клиент с таким ID существует
-      if (isSeller || isAdmin) {
-        if (!saleForm.client_id) { setError('Укажите ID клиента'); return; }
-        const clientExists = clients.find((c) => c.id === Number(saleForm.client_id));
-        if (!clientExists) {
-          setError(`Клиент с ID ${saleForm.client_id} не существует. Проверьте ID в разделе «Клиенты».`);
-          return;
-        }
-        if (!clientExists.is_active) {
-          setError(`Клиент с ID ${saleForm.client_id} заблокирован и не может совершать покупки.`);
-          return;
-        }
-      }
 
       await api('/sales/', {
         method: 'POST',
@@ -1015,21 +1006,29 @@ function App() {
   };
 
   const generateRecommendations = async () => {
+    setGenLoading(true);
+    setGenMessage('');
     try {
       const result = await api('/recommendations/generate', { method: 'POST' });
-      setMessage(result.message || 'Рекомендации сгенерированы');
+      setGenMessage(result.message || 'Рекомендации успешно сгенерированы');
       loadSectionData('recommendations');
     } catch (e) {
-      setError(e.message);
+      setGenMessage('Ошибка: ' + e.message);
+    } finally {
+      setGenLoading(false);
     }
   };
 
   const trainRecommendations = async () => {
+    setTrainLoading(true);
+    setTrainMessage('');
     try {
       const result = await api('/recommendations/train', { method: 'POST' });
-      setMessage(result.message || 'Модель обучена');
+      setTrainMessage(result.message || 'Модель успешно обучена');
     } catch (e) {
-      setError(e.message);
+      setTrainMessage('Ошибка: ' + e.message);
+    } finally {
+      setTrainLoading(false);
     }
   };
 
@@ -1075,6 +1074,10 @@ function App() {
   const checkoutCart = async () => {
     if (cart.length === 0) return;
     if (!cartAddress.trim()) { setCartError('Укажите адрес доставки'); return; }
+    if (user && !user.is_active) {
+      setCartError('Ваш аккаунт заблокирован. Оформление заказа невозможно. Обратитесь к администратору.');
+      return;
+    }
     setCartError('');
     try {
       const items = cart.map((i) => ({ product_id: i.product.id, quantity: i.quantity }));
@@ -1143,9 +1146,10 @@ function App() {
                 value={authForm.full_name}
                 onChange={(e) => setAuthForm({ ...authForm, full_name: e.target.value })} required />
               <label htmlFor="m-phone">Телефон</label>
-              <input id="m-phone" placeholder="+7..."
+              <input id="m-phone" placeholder="+7(999)999-99-99"
                 value={authForm.phone}
-                onChange={(e) => setAuthForm({ ...authForm, phone: e.target.value })} />
+                onChange={(e) => setAuthForm({ ...authForm, phone: formatPhoneInput(e.target.value, authForm.phone) })}
+                onKeyDown={(e) => phoneKeyDown(e, authForm.phone, setAuthForm, 'phone', authForm)} />
             </>
           )}
           <button type="submit" className="primary auth-submit">
@@ -1157,7 +1161,7 @@ function App() {
           {authMode === 'login' ? 'Зарегистрироваться' : 'Уже есть аккаунт? Войти'}
         </button>
         {error && <p className="error-text auth-notice">{error}</p>}
-        {authMessage && <p className="success-text auth-notice">{authMessage}</p>}
+        {message && <p className="success-text auth-notice">{message}</p>}
       </div>
     </div>
   );
@@ -1179,14 +1183,12 @@ function App() {
       {showAuthModal && authModalContent}
 
       <aside className="sidebar">
-        {/* Если пользователь вошёл — показываем имя и кнопку выхода */}
         {user ? (
           <div className="user-chip">
             <p className="user-name">{user?.full_name}</p>
             <p className="user-role">{roleLabel(user?.role)}</p>
           </div>
         ) : (
-          /* Если не вошёл — показываем кнопку входа */
           <button
             type="button"
             className="primary login-sidebar-btn"
@@ -1257,8 +1259,7 @@ function App() {
             )}
           </div>
 
-          {/* Разделы только для авторизованных */}
-          {sections.map((section) => (
+            {sections.map((section) => (
             <button
               key={section.id}
               type="button"
@@ -1284,8 +1285,7 @@ function App() {
         {loading && <p className="muted app-notice">Загрузка...</p>}
         {error && <p className="error-text app-notice">{error}</p>}
 
-        {/* Блок-заглушка для гостя в разделе, требующем авторизации */}
-        {!token && activeSection !== 'products' && activeSection !== 'categories' && (
+          {!token && activeSection !== 'products' && activeSection !== 'categories' && (
           <div className="auth-required-block">
             <h3>Требуется вход в аккаунт</h3>
             <p>Этот раздел доступен только зарегистрированным пользователям.</p>
@@ -1383,8 +1383,7 @@ function App() {
                     </div>
                     <div className="product-actions">
                       <button className="primary" onClick={() => openProductDetails(item)}>Подробнее</button>
-                      {/* Кнопка добавления в корзину — для всех кроме admin/seller */}
-                      {!isAdmin && !isSeller && (
+                                {!isAdmin && !isSeller && (
                         <button className="cart-add-btn" onClick={() => addToCart(item)}>В корзину</button>
                       )}
                       {isAdmin && (
@@ -1506,7 +1505,7 @@ function App() {
               <form className="form-grid" onSubmit={createSale}>
                 <h3 className="section-form-title">Оформить продажу</h3>
                 <input
-                  placeholder="ID клиента"
+                  placeholder="ID клиента (необязательно)"
                   type="number"
                   min="1"
                   value={saleForm.client_id}
@@ -1519,6 +1518,7 @@ function App() {
                   style={{ gridColumn: '1 / -1' }}
                 >
                   <option value="card">Банковская карта</option>
+                  <option value="cash">Наличные при получении</option>
                 </select>
 
                 <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -1582,7 +1582,7 @@ function App() {
             )}
             <div className="purchase-list">
               {sales.length === 0 && <p className="muted">Пока нет покупок</p>}
-              {sales.map((sale) => (
+              {[...sales].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).map((sale) => (
                 <div key={sale.id} className="purchase-block">
                   <div className="purchase-header">
                     <span>{new Date(sale.created_at).toLocaleString('ru-RU')}</span>
@@ -1635,8 +1635,9 @@ function App() {
                 onChange={(e) => setClientForm({ ...clientForm, password: e.target.value })} required />
               <input placeholder="Имя Фамилия" value={clientForm.full_name}
                 onChange={(e) => setClientForm({ ...clientForm, full_name: e.target.value })} required />
-              <input placeholder="Телефон" value={clientForm.phone}
-                onChange={(e) => setClientForm({ ...clientForm, phone: e.target.value })} />
+              <input placeholder="+7(999)999-99-99" value={clientForm.phone}
+                onChange={(e) => setClientForm({ ...clientForm, phone: formatPhoneInput(e.target.value, clientForm.phone) })}
+                onKeyDown={(e) => phoneKeyDown(e, clientForm.phone, setClientForm, 'phone', clientForm)} />
               <button className="primary" type="submit">Создать</button>
             </form>
 
@@ -1644,7 +1645,7 @@ function App() {
               placeholder="Поиск по имени или email клиента..."
               value={clientSearch}
               onChange={(e) => setClientSearch(e.target.value)}
-              style={{ marginBottom: 12, width: '100%', padding: '8px 12px', borderRadius: 8, border: '1.5px solid #C8DCF0', fontSize: 14 }}
+              style={{ marginBottom: 12, width: '100%', padding: '8px 12px', borderRadius: 8, border: '1.5px solid #C8DCF0', fontSize: 14, boxSizing: 'border-box' }}
             />
             <table className="data-table">
               <thead>
@@ -1689,10 +1690,7 @@ function App() {
 
         {activeSection === 'users' && isAdmin && (
           <section className="card section-card">
-            <div className="section-header">
-            </div>
             <form className="form-grid" onSubmit={saveUser}>
-              {/* Только сотрудник — вариант admin убран */}
               <h3 className="section-form-title">Создать сотрудника</h3>
               <input placeholder="Email" type="email" value={userForm.email}
                 onChange={(e) => setUserForm({ ...userForm, email: e.target.value })} required />
@@ -1700,12 +1698,12 @@ function App() {
                 onChange={(e) => setUserForm({ ...userForm, password: e.target.value })} required />
               <input placeholder="ФИО" value={userForm.full_name}
                 onChange={(e) => setUserForm({ ...userForm, full_name: e.target.value })} required />
-              <input placeholder="Телефон" value={userForm.phone}
-                onChange={(e) => setUserForm({ ...userForm, phone: e.target.value })} />
+              <input placeholder="+7(999)999-99-99" value={userForm.phone}
+                onChange={(e) => setUserForm({ ...userForm, phone: formatPhoneInput(e.target.value, userForm.phone) })}
+                onKeyDown={(e) => phoneKeyDown(e, userForm.phone, setUserForm, 'phone', userForm)} />
               <select value={userForm.role}
                 onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}>
-                {/* Только продавец — вариант admin недоступен */}
-                <option value="seller">Продавец</option>
+                  <option value="seller">Продавец</option>
               </select>
               <button className="primary" type="submit">Создать</button>
             </form>
@@ -1744,20 +1742,68 @@ function App() {
 
         {activeSection === 'recommendations' && (
           <section className="card section-card">
-            <div className="section-header">
-            </div>
             <div className="actions">
-              {(role === 'client' || isAdmin) && (
-                <button type="button" className="primary" onClick={generateRecommendations}>
-                  Сгенерировать рекомендации
-                </button>
+              {role === 'client' && (
+                <div>
+                  <button
+                    type="button"
+                    className="primary"
+                    onClick={generateRecommendations}
+                    disabled={genLoading}
+                    style={{ opacity: genLoading ? 0.7 : 1 }}
+                  >
+                    {genLoading ? 'Генерация...' : 'Сгенерировать рекомендации'}
+                  </button>
+                  {genMessage && (
+                    <p style={{
+                      marginTop: 8,
+                      padding: '8px 14px',
+                      borderRadius: 8,
+                      fontSize: 14,
+                      fontWeight: 500,
+                      backgroundColor: genMessage.startsWith('Ошибка') ? '#fdecea' : '#e6f4ea',
+                      color: genMessage.startsWith('Ошибка') ? '#c0392b' : '#1a6b2a',
+                      border: genMessage.startsWith('Ошибка') ? '1px solid #f5c6cb' : '1px solid #a8d8a8',
+                    }}>
+                      {genMessage}
+                    </p>
+                  )}
+                </div>
               )}
               {isAdmin && (
-                <button type="button" onClick={trainRecommendations}>
-                  Обучить модель
+                <button
+                  type="button"
+                  className="primary"
+                  onClick={trainRecommendations}
+                  disabled={trainLoading}
+                  style={{ opacity: trainLoading ? 0.7 : 1 }}
+                >
+                  {trainLoading ? 'Обучение...' : 'Обучить модель'}
                 </button>
               )}
             </div>
+            {isAdmin && (
+              <div style={{marginBottom: 12}}>
+                <p className="muted">
+                  Рекомендации генерируются для клиентов на основе их питомцев и истории покупок.
+                  Для работы модуля нажмите «Обучить модель», затем попросите клиента нажать «Сгенерировать рекомендации» в своём кабинете.
+                </p>
+                {trainMessage && (
+                  <p style={{
+                    marginTop: 8,
+                    padding: '8px 14px',
+                    borderRadius: 8,
+                    fontSize: 14,
+                    fontWeight: 500,
+                    backgroundColor: trainMessage.startsWith('Ошибка') ? '#fdecea' : '#e6f4ea',
+                    color: trainMessage.startsWith('Ошибка') ? '#c0392b' : '#1a6b2a',
+                    border: trainMessage.startsWith('Ошибка') ? '1px solid #f5c6cb' : '1px solid #a8d8a8',
+                  }}>
+                    {trainMessage}
+                  </p>
+                )}
+              </div>
+            )}
             <div className="product-grid">
               {recommendations.length === 0 && <p className="muted">Рекомендаций пока нет</p>}
               {recommendations.map((r) => {
@@ -1802,7 +1848,131 @@ function App() {
 
         {/*---------ПОДДЕРЖКА И ОБРАТНАЯ СВЯЗЬ ------------- */}
 
-        {/* Раздел поддержки убран */}
+        {activeSection === 'feedback' && (
+          <section className="card section-card">
+            <div className="feedback-layout">
+
+              {/* Форма обратной связи — для всех пользователей */}
+              <div className="feedback-form-block">
+                <h3 className="section-title">Напишите нам</h3>
+                <p className="feedback-desc">
+                  Есть вопрос или предложение? Заполните форму и мы ответим вам в ближайшее время.
+                </p>
+                <form onSubmit={saveFeedback} className="feedback-form">
+                  <div className="feedback-row">
+                    <div>
+                      <label className="feedback-label">Ваше имя</label>
+                      <input
+                        placeholder="Иван Иванов"
+                        value={feedbackForm.name}
+                        onChange={(e) => setFeedbackForm({ ...feedbackForm, name: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="feedback-label">Email</label>
+                      <input
+                        type="email"
+                        placeholder="example@mail.ru"
+                        value={feedbackForm.email}
+                        onChange={(e) => setFeedbackForm({ ...feedbackForm, email: e.target.value })}
+                        required
+                      />
+                    </div>
+                  </div>
+                  <label className="feedback-label">Тема обращения</label>
+                  <select
+                    value={feedbackForm.subject}
+                    onChange={(e) => setFeedbackForm({ ...feedbackForm, subject: e.target.value })}
+                    required
+                  >
+                    <option value="">Выберите тему</option>
+                    <option value="Вопрос о товаре">Вопрос о товаре</option>
+                    <option value="Проблема с заказом">Проблема с заказом</option>
+                    <option value="Вопрос об оплате">Вопрос об оплате</option>
+                    <option value="Предложение">Предложение</option>
+                    <option value="Другое">Другое</option>
+                  </select>
+                  <label className="feedback-label">Сообщение</label>
+                  <textarea
+                    placeholder="Опишите ваш вопрос подробнее..."
+                    value={feedbackForm.message}
+                    onChange={(e) => setFeedbackForm({ ...feedbackForm, message: e.target.value })}
+                    rows={5}
+                    required
+                  />
+                  <button type="submit" className="primary feedback-submit">
+                    Отправить обращение
+                  </button>
+                </form>
+              </div>
+
+              {/* Контактная информация */}
+              <div className="feedback-contacts">
+                <h3 className="section-title">Контакты</h3>
+                <div className="feedback-contact-list">
+                  <div className="feedback-contact-card">
+                    <div className="feedback-contact-icon">&#9742;</div>
+                    <div>
+                      <p className="feedback-contact-title">Телефон</p>
+                      <a href="tel:+76665554433" className="feedback-contact-value">+7(666)555-44-33</a>
+                      <p className="feedback-contact-note">Пн-Пт с 9:00 до 18:00</p>
+                    </div>
+                  </div>
+                  <div className="feedback-contact-card">
+                    <div className="feedback-contact-icon">&#9993;</div>
+                    <div>
+                      <p className="feedback-contact-title">Email</p>
+                      <a href="mailto:zootopia@petshop.ru" className="feedback-contact-value">zootopia@petshop.ru</a>
+                      <p className="feedback-contact-note">Ответим в течение 24 часов</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Список обращений — только для администратора */}
+            {isAdmin && feedbacks.length > 0 && (
+              <div style={{marginTop: 32}}>
+                <h3 className="section-title">Входящие обращения</h3>
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Имя</th>
+                      <th>Email</th>
+                      <th>Тема</th>
+                      <th>Сообщение</th>
+                      <th>Статус</th>
+                      <th>Дата</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {feedbacks.map((fb) => (
+                      <tr key={fb.id}>
+                        <td>{fb.name}</td>
+                        <td>{fb.email}</td>
+                        <td>{fb.subject}</td>
+                        <td style={{maxWidth:200, wordBreak:'break-word'}}>{fb.message}</td>
+                        <td>
+                          <select
+                            value={fb.status}
+                            onChange={(e) => updateFeedbackStatus(fb.id, e.target.value)}
+                            className="feedback-status-select"
+                          >
+                            <option value="new">Новое</option>
+                            <option value="in_progress">В работе</option>
+                            <option value="resolved">Решено</option>
+                          </select>
+                        </td>
+                        <td>{new Date(fb.created_at).toLocaleString('ru-RU')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        )}
 
         {/*---------АУДИТ ------------- */}
 
@@ -1959,7 +2129,6 @@ function App() {
         </div>
       )}
 
-      {/* Модальное окно редактирования товара — только для администратора */}
       {isEditModalOpen && (
         <div className="modal-overlay" {...overlayProps(closeEditModal)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
@@ -1979,11 +2148,9 @@ function App() {
                 onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} required />
               <input placeholder="Артикул" value={editForm.article}
                 onChange={(e) => setEditForm({ ...editForm, article: e.target.value })} />
-              {/* Цена не может быть ниже 0.01 */}
               <input placeholder="Цена" type="number" step="0.01" min="0.01"
                 value={editForm.price}
                 onChange={(e) => setEditForm({ ...editForm, price: e.target.value })} required />
-              {/* Количество не может быть отрицательным */}
               <input placeholder="Кол-во" type="number" min="0"
                 value={editForm.quantity}
                 onChange={(e) => setEditForm({ ...editForm, quantity: e.target.value })} />
@@ -2005,7 +2172,6 @@ function App() {
               </div>
               <textarea placeholder="Описание" value={editForm.description}
                 onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} />
-              {editProductError && <p className="error-text">{editProductError}</p>}
               <button type="submit" className="primary">Сохранить изменения</button>
             </form>
           </div>
@@ -2026,8 +2192,9 @@ function App() {
                 onChange={(e) => setEditClientForm({ ...editClientForm, email: e.target.value })} required />
               <input placeholder="Имя Фамилия" value={editClientForm.full_name}
                 onChange={(e) => setEditClientForm({ ...editClientForm, full_name: e.target.value })} required />
-              <input placeholder="Телефон" value={editClientForm.phone}
-                onChange={(e) => setEditClientForm({ ...editClientForm, phone: e.target.value })} />
+              <input placeholder="+7(999)999-99-99" value={editClientForm.phone}
+                onChange={(e) => setEditClientForm({ ...editClientForm, phone: formatPhoneInput(e.target.value, editClientForm.phone) })}
+                onKeyDown={(e) => phoneKeyDown(e, editClientForm.phone, setEditClientForm, 'phone', editClientForm)} />
               <button type="submit" className="primary">Сохранить</button>
             </form>
           </div>
